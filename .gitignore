@@ -12,3 +12,6 @@ __pycache__/
 
 # ghost directory entry on the exFAT drive (a file named like the cache dir); see README
 __pycache__
+.claude/runs/
+.claude/settings.local.json
+*.pipeline-new
