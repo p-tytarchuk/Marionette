@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Marionette Filmstrip</title>
+<style>
+  html,body { margin:0; background:#14161a; color:#d8dce4; font:13px system-ui,sans-serif; }
+  #bar { padding:6px 10px; color:#8a92a0; } canvas { display:block; }
+</style>
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/" } }
+</script>
+</head>
+<body>
+<div id="bar"></div>
+<script type="module">
+// Filmstrip of retargeted clips: viewer/strip.html?rows=<target>|<clip>;<target>|<clip>&n=8&w=300&h=360&span=2.4&view=side|front&times=1.2,1.23,1.27 (seconds, instead of n evenly spaced tiles)
+// One orthographic camera per tile, same scale for every row (span x the character's rest height), centred on the character's bounding box, so rows can be compared.
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+const q = new URLSearchParams(location.search);
+const rows = (q.get('rows') || '').split(';').filter(Boolean).map(r => r.split('|'));   // target|clip or target|/url/of/clip.glb|rootScale (shared Mixamo clips)
+const TIMES = (q.get('times') || '').split(',').filter(Boolean).map(Number), N = TIMES.length || +(q.get('n') || 8), W = +(q.get('w') || 300), H = +(q.get('h') || 360), SPAN = +(q.get('span') || 2.4), VIEW = q.get('view') || 'side';
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(1); renderer.setSize(W * N, H * rows.length); renderer.setScissorTest(true); renderer.setClearColor(0x14161a);
+document.body.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+scene.add(new THREE.HemisphereLight(0xffffff, 0x303640, 1.7));
+const sun = new THREE.DirectionalLight(0xffffff, 1.8); sun.position.set(3, 4, 2); scene.add(sun);
+const grid = new THREE.GridHelper(40, 80, 0x56607a, 0x2e3442); scene.add(grid);
+const loader = new GLTFLoader();
+const info = [];
+for (let r = 0; r < rows.length; r++) {
+  const [target, clip, rs] = rows[r];
+  const [g, c] = await Promise.all([loader.loadAsync(`/data/characters/${target}/model.glb`), loader.loadAsync(clip.startsWith('/') ? clip : `/data/characters/${target}/anims/${clip}.glb`)]);
+  if (rs) c.animations[0].tracks.forEach(tr => { if (tr.name.endsWith('.position')) { const v = tr.values.slice(); for (let i = 0; i < v.length; i++) v[i] *= +rs; tr.values = v; } });
+  const model = g.scene; scene.add(model); model.updateMatrixWorld(true);
+  model.traverse(o => { if (o.isMesh) o.frustumCulled = false; });   // a skinned mesh is culled by its bind-pose bounding sphere: it vanishes once the root has travelled away
+  const rest = new THREE.Box3().setFromObject(model, true), H0 = rest.max.y - rest.min.y;
+  const mixer = new THREE.AnimationMixer(model), act = mixer.clipAction(c.animations[0]); act.play(); act.paused = true;
+  const dur = c.animations[0].duration;
+  for (let i = 0; i < N; i++) {
+    act.time = TIMES.length ? Math.min(TIMES[i], dur * 0.999) : (i / (N - 1)) * dur * 0.999; mixer.update(0); model.updateMatrixWorld(true); model.traverse(o => { if (o.isSkinnedMesh) o.skeleton.update(); });   // bone matrices are otherwise only updated at render time: the box would lag a tile behind
+    const bb = new THREE.Box3().setFromObject(model, true), ctr = bb.getCenter(new THREE.Vector3());
+    const half = SPAN * H0 / 2, asp = W / H, cam = new THREE.OrthographicCamera(-half * asp, half * asp, half, -half, 0.1, 100);
+    if (VIEW === 'front') { cam.position.set(ctr.x, half * 0.78, ctr.z + 10); cam.lookAt(ctr.x, half * 0.78, ctr.z); }
+    else { cam.position.set(ctr.x + 10, half * 0.78, ctr.z); cam.lookAt(ctr.x, half * 0.78, ctr.z); }
+    model.visible = true;
+    renderer.setViewport(i * W, (rows.length - 1 - r) * H, W, H); renderer.setScissor(i * W, (rows.length - 1 - r) * H, W, H);
+    renderer.render(scene, cam);
+  }
+  model.visible = false;                         // each row draws only its own character
+  info.push(`${target} ${clip} ${dur.toFixed(2)}s H=${H0.toFixed(2)}m`);
+}
+document.getElementById('bar').textContent = info.join('   |   ');
+window.__ready = true;
+</script>
+</body>
+</html>

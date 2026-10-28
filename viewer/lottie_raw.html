@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Marionette Lottie Raw</title>
+<link rel="icon" href="data:,">
+<style>
+  :root { --bg:#14161a; --panel:#1b1e24; --line:#2a2e36; --text:#d8dce4; --dim:#8a92a0; --accent:#6ea8ff; --warn:#e8b04a; --good:#5fcf8a; }
+  * { box-sizing:border-box; }
+  html,body { margin:0; background:var(--bg); color:var(--text); font:13px/1.45 system-ui,-apple-system,sans-serif; }
+  .wrap { max-width:1500px; margin:0 auto; padding:18px 20px 30px; }
+  h1 { font-size:20px; margin:0 0 2px; } .sub { color:var(--dim); margin:0 0 10px; max-width:980px; }
+  a { color:var(--accent); }
+  .bar { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin:8px 0; }
+  input[type=text], input[type=number] { background:var(--panel); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:7px 10px; font:inherit; }
+  input[type=text] { flex:1; min-width:220px; } input[type=number] { width:90px; }
+  select, button { background:var(--panel); color:var(--text); border:1px solid var(--line); border-radius:6px; padding:6px 10px; font:inherit; }
+  button { cursor:pointer; } button:hover:not(:disabled) { border-color:var(--accent); color:var(--accent); } button.go { background:var(--accent); color:#0c1220; border:0; font-weight:600; padding:7px 16px; }
+  #status { color:var(--dim); } #status b { color:var(--text); font-weight:500; }
+  #msg { color:var(--warn); margin:6px 0; }
+  .cols { display:grid; grid-template-columns:minmax(0,1fr) 440px; gap:18px; align-items:start; }
+  @media (max-width:1100px) { .cols { grid-template-columns:1fr; } }
+  .tbl { border:1px solid var(--line); border-radius:8px; overflow:auto; max-height:calc(100vh - 230px); background:var(--panel); }
+  table { border-collapse:collapse; width:100%; }
+  th { position:sticky; top:0; background:#20242b; text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.8px; color:var(--dim); padding:6px 8px; white-space:nowrap; }
+  td { padding:5px 8px; border-top:1px solid var(--line); vertical-align:top; }
+  tr.row { cursor:pointer; } tr.row:hover { background:#222730; } tr.sel { background:#27324a !important; }
+  td.cap { max-width:520px; } td.cap div { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  td.n { font-variant-numeric:tabular-nums; white-space:nowrap; color:var(--dim); }
+  .side { position:sticky; top:12px; background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px; }
+  .tabs { display:flex; gap:6px; margin-bottom:8px; } .tabs button.on { border-color:var(--accent); color:var(--accent); }
+  #anim, #svg { background:#fff; height:340px; border-radius:6px; display:flex; align-items:center; justify-content:center; color:#777; }
+  #anim svg { width:100%; height:100%; } #svg img { max-width:100%; max-height:100%; }
+  .side h3 { margin:12px 0 3px; font-size:11px; text-transform:uppercase; letter-spacing:1px; color:var(--dim); font-weight:600; }
+  .side p { margin:0; }
+  .tags span { display:inline-block; border:1px solid var(--line); border-radius:999px; padding:0 8px; margin:0 4px 4px 0; color:var(--dim); font-size:12px; }
+  .pager { display:flex; gap:8px; align-items:center; margin:8px 0 0; color:var(--dim); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Lottie dataset, raw</h1>
+  <p class="sub">Browse the corpus itself: pick a metadata shard and a window of rows, no Qwen label needed. Click a row or use the arrow keys to play it. <a href="/viewer/home.html">← menu</a></p>
+  <form class="bar" id="form">
+    <label>dataset <select id="ds"><option value="animation">LottieAnimation-660K</option><option value="svg">LottieSVG-10M</option></select></label>
+    <label>shard <input type="number" id="shard" value="0" min="0" max="67"></label>
+    <label>from row <input type="number" id="start" value="0" min="0" step="100"></label>
+    <label>rows <select id="count"><option>100</option><option selected>300</option><option>1000</option></select></label>
+    <button class="go" type="submit">Load</button>
+    <input type="text" id="flt" placeholder="filter the loaded rows (id, name, caption, tags)" autocomplete="off">
+  </form>
+  <div id="status"></div><div id="msg"></div>
+  <div class="cols">
+    <section>
+      <div class="tbl"><table>
+        <thead><tr><th>row</th><th>id</th><th>name / style</th><th>caption</th><th>tags</th></tr></thead>
+        <tbody id="body"></tbody>
+      </table></div>
+      <div class="pager"><button id="prev">← previous window</button><button id="next">next window →</button></div>
+    </section>
+    <aside class="side">
+      <div class="tabs"><button type="button" id="tLot" class="on">Lottie</button><button type="button" id="tSvg" style="display:none">SVG source</button></div>
+      <div id="anim">select a row</div><div id="svg" style="display:none"></div>
+      <h3>Caption</h3><p id="cap">-</p>
+      <h3>Tags</h3><div class="tags" id="tags">-</div>
+      <h3>Animation</h3><p id="meta" style="color:var(--dim)">-</p>
+    </aside>
+  </div>
+</div>
+<script src="/viewer/lottie.min.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const fmt = n => Number(n).toLocaleString('en-US');
+const SHARDS = { animation: 68, svg: 100 };
+let all = [], shown = [], sel = -1, seq = 0, anim = null, cur = { dataset: 'animation', shard: 0, start: 0, count: 300 };
+
+function setShardLimit() { $('shard').max = SHARDS[$('ds').value] - 1; if (+$('shard').value > +$('shard').max) $('shard').value = $('shard').max; }
+$('ds').addEventListener('change', setShardLimit);
+
+async function load() {
+  const my = ++seq;
+  cur = { dataset: $('ds').value, shard: +$('shard').value, start: Math.max(0, +$('start').value), count: +$('count').value };
+  $('msg').textContent = 'reading the shard…'; $('status').textContent = '';
+  let r;
+  try { r = await (await fetch(`/api/lottie_raw?dataset=${cur.dataset}&shard=${cur.shard}&start=${cur.start}&count=${cur.count}`)).json(); }
+  catch (e) { $('msg').textContent = 'the server did not answer'; return; }
+  if (my !== seq) return;
+  if (r.error) { $('msg').textContent = r.error; return; }
+  $('msg').textContent = '';
+  all = r.rows;
+  $('status').innerHTML = `${esc(cur.dataset)} shard <b>${cur.shard}</b> of ${r.shards} · <b>${fmt(all.length)}</b> rows from row ${fmt(cur.start)}${all.length < cur.count ? ' (end of the shard)' : ''}`;
+  $('prev').disabled = cur.start <= 0; $('next').disabled = all.length < cur.count;
+  const isSvg = cur.dataset === 'svg'; $('tSvg').style.display = isSvg ? '' : 'none'; if (!isSvg) tab('lot');
+  render();
+}
+
+function render() {
+  const words = $('flt').value.toLowerCase().split(/\s+/).filter(Boolean);
+  shown = words.length ? all.filter(d => { const b = `${d.id} ${d.name} ${d.caption} ${(d.tag || []).join(' ')}`.toLowerCase(); return words.every(w => b.includes(w)); }) : all;
+  $('body').innerHTML = shown.map((d, i) => `<tr class="row" data-i="${i}"><td class="n">${d.row}</td><td class="n">${esc(d.id)}</td><td>${esc(d.name)}</td><td class="cap"><div title="${esc(d.caption)}">${esc(d.caption)}</div></td><td class="cap"><div>${esc((d.tag || []).join(', '))}</div></td></tr>`).join('');
+  sel = -1; if (shown.length) select(0);
+}
+
+function tab(w) {
+  $('anim').style.display = w === 'lot' ? '' : 'none'; $('svg').style.display = w === 'svg' ? '' : 'none';
+  $('tLot').classList.toggle('on', w === 'lot'); $('tSvg').classList.toggle('on', w === 'svg');
+}
+$('tLot').addEventListener('click', () => tab('lot')); $('tSvg').addEventListener('click', () => tab('svg'));
+
+async function select(i) {
+  if (i < 0 || i >= shown.length) return;
+  sel = i; const d = shown[i];
+  document.querySelectorAll('tr.sel').forEach(e => e.classList.remove('sel'));
+  const tr = document.querySelector(`tr[data-i="${i}"]`); if (tr) { tr.classList.add('sel'); tr.scrollIntoView({ block: 'nearest' }); }
+  $('cap').textContent = d.caption || '-';
+  $('tags').innerHTML = (d.tag || []).map(t => `<span>${esc(t)}</span>`).join('') || '-';
+  $('meta').textContent = `id ${d.id} · row ${d.row}`;
+  if (anim) { try { anim.destroy(); } catch (e) {} anim = null; }
+  $('anim').textContent = 'loading…'; $('svg').textContent = '';
+  const my = ++seq;
+  try {
+    const x = await (await fetch(`/api/lottie_raw_row?dataset=${cur.dataset}&shard=${cur.shard}&id=${d.id}`)).json();
+    if (my !== seq || sel !== i) return;
+    if (x.error) { $('anim').textContent = x.error; return; }
+    $('anim').textContent = '';
+    anim = lottie.loadAnimation({ container: $('anim'), renderer: 'svg', loop: true, autoplay: true, animationData: x.lottie });
+    if (x.svg) { const im = document.createElement('img'); im.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(x.svg); $('svg').appendChild(im); }   // an <img> never runs scripts inside the SVG
+    const L = x.lottie, dur = ((L.op || 0) - (L.ip || 0)) / (L.fr || 30);
+    $('meta').textContent = `id ${d.id} · row ${d.row} · ${L.w}×${L.h}, ${L.fr} fps, ${dur.toFixed(2)} s, ${(L.layers || []).length} layers`;
+  } catch (e) { $('anim').textContent = 'could not load the animation'; }
+}
+
+$('body').addEventListener('click', e => { const tr = e.target.closest('tr.row'); if (tr) select(+tr.dataset.i); });
+document.addEventListener('keydown', e => {
+  if (['INPUT', 'SELECT'].includes(e.target.tagName)) return;
+  if (e.key === 'ArrowDown') { e.preventDefault(); select(sel + 1); } else if (e.key === 'ArrowUp') { e.preventDefault(); select(sel - 1); }
+});
+$('form').addEventListener('submit', e => { e.preventDefault(); load(); });
+$('flt').addEventListener('input', render);
+$('prev').addEventListener('click', () => { $('start').value = Math.max(0, cur.start - cur.count); load(); });
+$('next').addEventListener('click', () => { $('start').value = cur.start + cur.count; load(); });
+const p = new URLSearchParams(location.search);                       // ?dataset=svg&shard=5&start=200
+if (p.get('dataset') in SHARDS) $('ds').value = p.get('dataset');
+setShardLimit(); if (p.get('shard')) $('shard').value = p.get('shard'); if (p.get('start')) $('start').value = p.get('start');
+load();
+</script>
+</body>
+</html>

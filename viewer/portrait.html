@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Marionette Portraits</title>
+<style>
+  html,body { margin:0; background:#14161a; color:#d8dce4; font:13px system-ui,sans-serif; }
+  canvas { display:block; }
+</style>
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/" } }
+</script>
+</head>
+<body>
+<script type="module">
+// Rest-pose portraits of characters: viewer/portrait.html?chars=<folder>;<folder>&w=256&h=256
+// Each row is one character in three tiles: front, side, three-quarter. Orthographic camera fitted to the character's bounding box (so the body shape, not the size, is what
+// differs between rows); used by scripts/generate/shape_retrieval.py to caption / embed characters by shape.
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+const q = new URLSearchParams(location.search);
+const chars = (q.get('chars') || '').split(';').filter(Boolean), W = +(q.get('w') || 256), H = +(q.get('h') || 256);
+const VIEWS = [[0, 0, 1], [1, 0, 0], [1, 0.25, 1]];
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(1); renderer.setSize(W * VIEWS.length, H * chars.length); renderer.setScissorTest(true); renderer.setClearColor(0x14161a);
+document.body.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+scene.add(new THREE.HemisphereLight(0xffffff, 0x303640, 1.7));
+const sun = new THREE.DirectionalLight(0xffffff, 1.8); sun.position.set(3, 4, 2); scene.add(sun);
+const loader = new GLTFLoader();
+const failed = [];
+for (let r = 0; r < chars.length; r++) {
+  let g;
+  try { g = await loader.loadAsync(`/data/characters/${chars[r]}/model.glb`); } catch (e) { failed.push(chars[r]); continue; }
+  const model = g.scene; scene.add(model); model.updateMatrixWorld(true);
+  model.traverse(o => { if (o.isMesh) o.frustumCulled = false; if (o.isSkinnedMesh) o.skeleton.update(); });
+  const bb = new THREE.Box3().setFromObject(model, true), ctr = bb.getCenter(new THREE.Vector3()), size = bb.getSize(new THREE.Vector3());
+  const half = Math.max(size.x, size.y, size.z) * 0.62, d = new THREE.Vector3();
+  VIEWS.forEach((v, i) => {
+    d.set(...v).normalize();
+    const cam = new THREE.OrthographicCamera(-half, half, half, -half, 0.01, 1000);
+    cam.position.copy(ctr).addScaledVector(d, 50); cam.lookAt(ctr);
+    renderer.setViewport(i * W, (chars.length - 1 - r) * H, W, H); renderer.setScissor(i * W, (chars.length - 1 - r) * H, W, H);
+    renderer.render(scene, cam);
+  });
+  scene.remove(model);
+  model.traverse(o => { if (o.geometry) o.geometry.dispose(); });
+}
+window.__failed = failed;
+window.__ready = true;
+</script>
+</body>
+</html>

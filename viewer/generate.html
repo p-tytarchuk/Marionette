@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Marionette Generator</title>
+<style>
+  :root { --bg:#14161a; --panel:#1b1e24; --line:#2a2e36; --text:#d8dce4; --dim:#8a92a0; --accent:#6ea8ff; --warn:#e8b04a; --bad:#ef6b6b; --good:#5fcf8a; }
+  * { box-sizing:border-box; }
+  html,body { margin:0; height:100%; background:var(--bg); color:var(--text); font:13px/1.4 system-ui,-apple-system,sans-serif; }
+  #app { display:grid; grid-template-columns:340px 1fr; height:100%; }
+  #side { background:var(--panel); border-right:1px solid var(--line); display:flex; flex-direction:column; min-height:0; overflow:auto; }
+  .blk { padding:10px 12px; border-bottom:1px solid var(--line); display:grid; gap:6px; }
+  h1 { font-size:14px; margin:0; } h2 { font-size:12px; margin:0; color:var(--dim); font-weight:600; text-transform:uppercase; letter-spacing:.04em; }
+  textarea, input[type=text], input[type=number], select { width:100%; background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:6px; padding:6px 8px; font:inherit; }
+  textarea { resize:vertical; min-height:58px; }
+  .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .row > * { flex:1; min-width:70px; }
+  label { color:var(--dim); font-size:12px; display:grid; gap:2px; }
+  button { background:var(--panel); color:var(--text); border:1px solid var(--line); border-radius:6px; padding:5px 10px; font:inherit; cursor:pointer; }
+  button:hover { border-color:var(--accent); }
+  button.go { background:#25324a; border-color:var(--accent); color:#fff; padding:8px; font-weight:600; }
+  button:disabled { opacity:.5; cursor:wait; }
+  .chip { font-size:11px; padding:2px 8px; border-radius:10px; flex:none; color:var(--dim); }
+  #status { min-height:18px; color:var(--dim); font-size:12px; }
+  #status.err { color:var(--bad); } #status.ok { color:var(--good); }
+  #hist { display:grid; }
+  .h { padding:6px 12px; cursor:pointer; border-bottom:1px solid #20242b; }
+  .h:hover { background:#222730; } .h.sel { background:#25324a; }
+  .h .a { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .h .m { color:var(--dim); font-size:11px; }
+  #main { position:relative; min-width:0; }
+  iframe { width:100%; height:100%; border:0; background:var(--bg); }
+  #empty { position:absolute; inset:0; display:grid; place-items:center; color:var(--dim); text-align:center; padding:20px; pointer-events:none; }
+  .good { color:var(--good); } .warn { color:var(--warn); } .bad { color:var(--bad); }
+  small { color:var(--dim); }
+  #cands { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; }
+  .cand { border:1px solid var(--line); border-radius:6px; overflow:hidden; cursor:pointer; background:var(--bg); }
+  .cand:hover { border-color:var(--accent); } .cand.sel { border-color:var(--good); }
+  .cand .im { height:84px; background-size:300% 100%; background-position:100% 0; background-repeat:no-repeat; }
+  .cand .t { font-size:10px; color:var(--dim); padding:2px 4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+</style>
+</head>
+<body>
+<div id="app">
+  <aside id="side">
+    <div class="blk">
+      <h1>Marionette generator</h1>
+      <small>Type what the character should do. A latent diffusion model makes a motion, it is put on the character you pick (IK, then the retargeter) and played on the right.
+        <a href="/viewer/" style="color:var(--accent)">character browser →</a></small>
+    </div>
+    <div class="blk">
+      <h2>Prompt</h2>
+      <textarea id="prompt" spellcheck="false">An object walks forward.</textarea>
+      <div class="row" id="chips"></div>
+      <label style="display:flex;gap:6px;align-items:center;grid-auto-flow:column;justify-content:start"><input type="checkbox" id="rewrite" checked> rewrite the prompt into the dataset's wording first</label>
+      <label>Text front end <select id="frontend"><option value="rules">rules (no language model, instant, phone-sized)</option><option value="llm">small LLM (Qwen2.5-1.5B, loads on first use)</option></select></label>
+      <label style="display:flex;gap:6px;align-items:center;grid-auto-flow:column;justify-content:start"><input type="checkbox" id="auto" checked> pick the character from the shape words in the prompt</label>
+      <small>"a small brown dog doing a backflip" is split into the look (“a small brown dog”, matched against rest-pose portraits of all characters with CLIP) and the motion (“does a backflip”, generated).
+        With no shape words (“An object walks forward.”) the character chosen below is used. Only existing characters are returned (no new bodies).</small>
+      <small>The model was trained on captions like "An object performs a backflip." Rewriting turns "person does a back flip" into that form: the default front end does it with word lists and rules (no language model; the "shape" words are split off first), the LLM option uses Qwen2.5-1.5B (better on garbled wording) and made reworded prompts match about 4-9 points
+        better in tests. Untick to send the text as typed.</small>
+    </div>
+    <div class="blk">
+      <h2>Character</h2>
+      <div class="row"><select id="fcls" style="flex:0 0 120px"><option value="">all</option><option>biped</option><option>quadruped</option></select><input type="text" id="fq" placeholder="filter by name…" autocomplete="off"></div>
+      <select id="target" size="1"></select>
+      <small id="tcount"></small>
+    </div>
+    <div class="blk">
+      <h2>Sampler</h2>
+      <div class="row">
+        <label>Guidance <input type="number" id="guidance" value="2" min="1" max="6" step="0.5"></label>
+        <label>Seed <input type="number" id="seed" value="0" step="1"></label>
+        <label>Smooth <input type="number" id="smooth" value="3" min="0" max="8" step="1"></label>
+        <label>Mode <select id="mode"><option value="auto">auto</option><option value="walk">walk (speed cap)</option><option value="run">run (duration band)</option><option value="plain">plain</option></select></label>
+      </div>
+      <label style="display:flex;gap:6px;align-items:center;grid-auto-flow:column;justify-content:start"><input type="checkbox" id="straight"> straight line (no sideways drift, no turning)</label>
+      <small>Zeroes the generated sideways velocity and yaw rate, so the character moves along one straight line. Tested on flips, walk and run: nothing else in the motion changes
+        (the quality rates were identical), the path deviation drops to 0. Leave it off for actions that turn ("walks in a circle", cartwheels).</small>
+      <small>Guidance 1-6: higher follows the prompt harder but gives less varied, shorter, faster motion (2 is the tested default). Auto = walk setting for "walks", run
+        setting for "runs / jogs / sprints", plain for everything else. Smooth = low-pass (frames) on the generated limbs, removes joint jumps in fast moves such as flips (0 = off).</small>
+    </div>
+    <div class="blk">
+      <h2>Runtime</h2>
+      <label style="display:flex;gap:6px;align-items:center;grid-auto-flow:column;justify-content:start"><input type="checkbox" id="mobile"> mobile runtime (ONNX Runtime, int8, CPU)</label>
+      <div class="row">
+        <label>CPU threads <input type="number" id="threads" value="4" min="1" max="16" step="1"></label>
+        <label>Phone slowdown × <input type="number" id="slow" value="4" min="1" max="20" step="0.5"></label>
+      </div>
+      <small>Runs the neural part (CLIP text encoder, the 50-step diffusion sampler, the decoder) the way a phone would: ONNX Runtime on the CPU with the int8 denoiser and decoder (data/mobile, 289 MB here, about 98 MB
+        on a phone), and shows how long each step takes. Measured on this computer; the phone figure is that time times the slowdown factor, which is an assumption (not measured on a phone). The IK, quality gate and
+        retargeter are still Python here and would be native code on a phone. Walk and run use the desktop sampler (their speed constraint is not ported). Ticking the box creates the sessions in the background (about 1 s, not counted).
+        With the box unticked the same timing breakdown is shown for the desktop (torch) runtime.</small>
+    </div>
+    <div class="blk">
+      <h2>Quality gate</h2>
+      <div class="row">
+        <label>Tries <input type="number" id="tries" value="4" min="1" max="16" step="1"></label>
+        <label style="display:flex;gap:6px;align-items:center;grid-auto-flow:column;justify-content:start;flex:2"><input type="checkbox" id="land" checked> flips must land upright</label>
+      </div>
+      <small>Plain mode (flips, kicks, jumps, rolls…) draws up to this many candidates and keeps the first that is smooth (at most 1 joint step over 60°, none over 100°) and, for a flip prompt, completes the turn (hips pitch range at least 300°)
+        and, if ticked, ends upright (body-up axis within 37° of vertical over the last 8 frames). If none passes, the best candidate is used and the result says so. About 8-9% of single flip samples pass all three, so
+        raise Tries for flips (16 tries about 3 s). Walk and run modes have no gate; 1 = gate off.</small>
+    </div>
+    <div class="blk">
+      <div class="row"><button class="go" id="go" style="flex:3">Generate</button><button id="dice" title="new random seed, then generate" style="flex:1">🎲 new seed</button></div>
+      <div id="status"></div>
+      <div id="timing" style="display:none"></div>
+      <div id="gate" style="display:none"></div>
+      <div id="shape" style="display:none;gap:6px"></div>
+    </div>
+    <div class="blk">
+      <h2>Player</h2>
+      <label style="display:flex;gap:6px;align-items:center;grid-auto-flow:column;justify-content:start"><input type="checkbox" id="showsrc" checked> show the source clip next to the result</label>
+      <small>The source is the decoded human skeleton the motion was generated as; the result is that motion retargeted onto the chosen character (labelled “retargeted”). Untick to show only the retargeted character, centred.</small>
+    </div>
+    <div class="blk" style="border-bottom:0"><h2>This session</h2><small id="hn">Nothing generated yet.</small></div>
+    <div id="hist"></div>
+  </aside>
+  <div id="main">
+    <iframe id="view" title="player"></iframe>
+    <div id="empty">Generated clips play here, next to the pose sequence they came from (the “source” is the decoded human skeleton).<br>Same player as compare.html: space play/pause, ←/→ one frame, o overlay, 1/2/3 camera.</div>
+  </div>
+</div>
+<script type="module">
+const $ = id => document.getElementById(id);
+const EXAMPLES = ['a small brown dog doing a backflip', 'a big white bear walking forward', 'a knight in armor jumps', 'a cat runs forward', 'An object walks forward.', 'An object runs forward.', 'An object jogs forward.', 'An object walks slowly.', 'An object jumps.',
+  'An object does a backflip.', 'An object waves with one hand.', 'An object kicks.', 'An object stands still.'];
+let targets = [], hist = [], busy = false;
+
+$('chips').innerHTML = EXAMPLES.map(e => `<button class="chip">${e.replace(/^An object /, '').replace(/\.$/, '')}</button>`).join('');
+$('chips').addEventListener('click', e => { const i = [...$('chips').children].indexOf(e.target); if (i >= 0) $('prompt').value = EXAMPLES[i]; });
+
+function fillTargets() {
+  const q = $('fq').value.trim().toLowerCase(), c = $('fcls').value, keep = $('target').value;
+  const list = targets.filter(t => (!c || t.cls === c) && (!q || t.key.toLowerCase().includes(q)));
+  $('target').innerHTML = list.slice(0, 400).map(t => `<option value="${t.key}">${t.key.replace(/^(objaverse|mixamo)_/, '$1 ').slice(0, 48)} · ${t.cls}</option>`).join('');
+  if (list.some(t => t.key === keep)) $('target').value = keep;
+  $('tcount').textContent = `${list.length} characters` + (list.length > 400 ? ' (first 400 shown, filter to narrow)' : '');
+}
+$('fq').oninput = $('fcls').onchange = fillTargets;
+
+function renderHist() {
+  $('hn').style.display = hist.length ? 'none' : '';
+  $('hist').innerHTML = hist.map((h, i) => `<div class="h${h.sel ? ' sel' : ''}" data-i="${i}"><div class="a" title="${h.typed !== h.prompt ? 'typed: ' + h.typed : ''}">${h.prompt}</div>
+    <div class="m">${h.target.replace(/^(objaverse|mixamo)_/, '').slice(0, 14)} · ${h.mode} · g${h.guidance} · seed ${h.seed} · ${h.duration_s} s</div></div>`).join('');
+}
+$('hist').onclick = e => { const el = e.target.closest('.h'); if (el) show(hist[+el.dataset.i]); };
+
+function show(h) {
+  hist.forEach(x => x.sel = x === h);
+  $('empty').style.display = 'none';
+  $('view').src = `/viewer/compare.html?embed${$('showsrc').checked ? '' : '&nosource'}&t=${Date.now()}#${encodeURIComponent(h.target + '|' + h.name)}`;
+  renderHist();
+}
+
+function showTiming(d) {
+  const t = d.timing_ms, el = $('timing');
+  if (!t) { el.style.display = 'none'; return; }
+  const f = +$('slow').value || 1, neural = t.text_encoder + t.sampler + t.decoder, py = t.ik_gate + t.retarget;
+  el.style.display = 'block';
+  el.innerHTML = `<small><b>${t.runtime}${t.threads ? ' · ' + t.threads + ' threads' : ''}</b> · total <b>${t.total} ms</b> (${t.candidates} candidate${t.candidates === 1 ? '' : 's'})<br>
+    text encoder ${t.text_encoder} · sampler ${t.sampler} · decoder ${t.decoder} · IK + gate ${t.ik_gate} · retarget + write ${t.retarget} · front end ${t.frontend} ms${t.one_time_load > 50 ? ' · one-time load ' + Math.round(t.one_time_load) + ' ms (not counted)' : ''}<br>
+    ${t.runtime === 'mobile' ? `neural part ${Math.round(neural)} ms here → about <b>${Math.round(neural * f)} ms on a phone</b> at ×${f} (assumed factor). IK, gate and retarget (${Math.round(py)} ms) are Python here, native code on a phone: not estimated.` : `desktop runtime (torch on the GPU): no phone estimate, tick "mobile runtime" for one.`}
+    ${d.mobile_note ? '<br><span class="warn">' + d.mobile_note + '</span>' : ''}</small>`;
+}
+
+function showGate(d) {
+  const g = $('gate'), q = d.quality;
+  if (d.mode !== 'plain' || !q || +$('tries').value < 2) { g.style.display = 'none'; return; }
+  const bits = [`${q.spikes} spike${q.spikes === 1 ? '' : 's'} >60° (max step ${q.max_step_deg}°)`];
+  let ok = q.spikes <= 1 && q.max_step_deg <= 100;
+  if (q.rotation_required) {
+    const turned = q.pitch_range_deg >= 300, up = q.landing_up >= 0.8;
+    bits.push(`turn ${q.pitch_range_deg}° <span class="${turned ? 'good' : 'bad'}">${turned ? '✓' : '✗ under 300°'}</span>`);
+    bits.push(`lands ${q.landing_up} <span class="${up ? 'good' : (d.land ? 'bad' : 'warn')}">${up ? '✓ upright' : (d.land ? '✗ not upright (needs ≥ 0.8)' : 'not upright (not required)')}</span>`);
+    ok = ok && turned && (up || !d.land);
+  }
+  g.style.display = 'block';
+  g.innerHTML = `<small>gate <b class="${d.gate_passed ? 'good' : 'bad'}">${d.gate_passed ? 'passed' : 'failed — best of the candidates used'}</b> · candidate ${d.tries_used} of ${$('tries').value} · ${bits.join(' · ')}</small>`;
+}
+
+function showCandidates(d) {
+  const s = d.shape, box = $('shape');
+  if (!s || !s.hits.length) { box.style.display = 'none'; return; }
+  box.style.display = 'grid';
+  box.innerHTML = `<small>shape “${s.shape}” · motion “${s.motion || '(none, default)'}” — click another character to put the same motion on it</small><div id="cands">` +
+    s.hits.map(h => `<div class="cand${h.key === d.target ? ' sel' : ''}" data-k="${h.key}" data-m="${(s.motion || d.prompt).replace(/"/g, '&quot;')}"><div class="im" style="background-image:url(/data/shape/all/img/${h.key}.png)"></div>
+      <div class="t">${h.key.replace(/^(objaverse|mixamo)_/, '').slice(0, 12)} · ${h.cls} · ${h.cos}</div></div>`).join('') + '</div>';
+}
+$('shape').onclick = e => { const el = e.target.closest('.cand'); if (el && !busy) { $('target').value = el.dataset.k; generate(false, { target: el.dataset.k, prompt: el.dataset.m, shape: lastShape }); } };
+let lastShape = null;
+
+async function generate(newSeed, override) {
+  if (busy) return;
+  if (newSeed) $('seed').value = Math.floor(Math.random() * 100000);
+  const body = { prompt: override ? override.prompt : $('prompt').value, target: override ? override.target : $('target').value, guidance: +$('guidance').value, seed: +$('seed').value, mode: $('mode').value, rewrite: $('rewrite').checked, smooth: +$('smooth').value, straight: $('straight').checked, tries: +$('tries').value, land: $('land').checked, frontend: $('frontend').value, mobile: $('mobile').checked, threads: +$('threads').value, auto_character: $('auto').checked && !override };
+  if (!body.target) { $('status').className = 'err'; $('status').textContent = 'pick a character'; return; }
+  busy = true; $('go').disabled = $('dice').disabled = true;
+  $('status').className = ''; const t0 = Date.now();
+  const tick = setInterval(() => $('status').textContent = `generating… ${((Date.now() - t0) / 1000).toFixed(0)} s` + (hist.length ? '' : ' (the models load when the server starts; if that has not finished yet this call waits for it, about a minute)'), 500);
+  try {
+    const r = await fetch('/api/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || r.statusText);
+    const m = d.metrics, why = [];
+    if (m.reach_fail_frames > 20) why.push('reach failures'); if (m.penetration_max > 0.03) why.push('penetration'); if (m.skate_mean > 0.1) why.push('sliding');
+    if (m.rot_steps_over_60deg > 2) why.push('rotation spikes'); if (m.lift_max > 0.5) why.push('large body lift');
+    const bad = why.length > 0;
+    $('status').className = bad ? 'err' : 'ok';
+    $('status').textContent = (d.typed !== d.prompt ? `rewritten: “${d.prompt}” · ` : '') + `${d.mode} · ${d.duration_s} s · ${d.speed_hips_h_per_s} hips heights/s · reach fails ${m.reach_fail_frames} · skate ${m.skate_mean} m/s · penetration ${m.penetration_max} m`
+      + (bad ? ' — flagged: ' + why.join(', ') : '') + (d.straight ? ' · straight line' : '') + ` · rot spikes ${m.rot_steps_over_60deg} · lift ${m.lift_max} m`;
+    if (override) d.shape = override.shape && { ...override.shape }; else lastShape = d.shape || null;
+    if (d.shape && d.shape.hits.length) {                                       // show the retrieved character in the picker (it may be past the first 400 listed)
+      $('fq').value = ''; $('fcls').value = ''; fillTargets();
+      if (![...$('target').options].some(o => o.value === d.target)) $('target').add(new Option(d.target, d.target));
+      $('target').value = d.target;
+    }
+    showGate(d); showTiming(d);
+    hist.unshift(d); show(d); showCandidates(d);
+  } catch (e) { $('status').className = 'err'; $('status').textContent = String(e.message || e); }
+  finally { clearInterval(tick); busy = false; $('go').disabled = $('dice').disabled = false; }
+}
+const warm = () => { if ($('mobile').checked) fetch('/api/warm', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ threads: +$('threads').value }) }).catch(() => {}); };
+$('mobile').onchange = $('threads').onchange = warm;
+$('showsrc').onchange = () => { try { $('view').contentWindow.setSource($('showsrc').checked); } catch (e) { /* player not loaded yet: the next load reads the checkbox */ } };
+$('go').onclick = () => generate(false);
+$('dice').onclick = () => generate(true);
+$('prompt').addEventListener('keydown', e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) generate(false); });
+
+try {
+  targets = await (await fetch('/api/targets')).json();
+  fillTargets();
+  const def = targets.find(t => t.key === 'mixamo_Aciana'); if (def) $('target').value = def.key;
+} catch (e) { $('status').className = 'err'; $('status').textContent = 'could not load /api/targets — run: python viewer/serve.py'; }
+renderHist();
+</script>
+</body>
+</html>

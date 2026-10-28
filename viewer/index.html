@@ -1,0 +1,350 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Marionette Viewer</title>
+<style>
+  :root { --bg:#14161a; --panel:#1b1e24; --line:#2a2e36; --text:#d8dce4; --dim:#8a92a0; --accent:#6ea8ff; --warn:#e8b04a; }
+  * { box-sizing:border-box; }
+  html,body { margin:0; height:100%; background:var(--bg); color:var(--text); font:13px/1.4 system-ui,-apple-system,sans-serif; }
+  #app { display:grid; grid-template-columns:300px 1fr; height:100%; }
+  #side { background:var(--panel); border-right:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  #filters { padding:10px; border-bottom:1px solid var(--line); display:grid; gap:6px; }
+  #filters input[type=text], #filters select { width:100%; background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:6px; padding:6px 8px; font:inherit; }
+  #filters .row { display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
+  #count { color:var(--dim); font-size:12px; margin-left:auto; }
+  #list { overflow:auto; flex:1; }
+  .item { display:flex; justify-content:space-between; gap:8px; padding:6px 10px; cursor:pointer; border-bottom:1px solid #20242b; }
+  .item:hover { background:#222730; }
+  .item.sel { background:#25324a; }
+  .item .n { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .item .m { color:var(--dim); font-size:11px; white-space:nowrap; }
+  .item .w { color:var(--warn); }
+  #main { position:relative; min-width:0; }
+  canvas { display:block; width:100%; height:100%; }
+  #info { position:absolute; top:12px; right:12px; width:270px; background:rgba(27,30,36,.92); border:1px solid var(--line); border-radius:10px; padding:10px 12px; }
+  #info h3 { margin:0 0 6px; font-size:13px; word-break:break-all; }
+  #info table { width:100%; border-collapse:collapse; }
+  #info td { padding:1px 0; vertical-align:top; }
+  #info td:first-child { color:var(--dim); width:92px; }
+  .flag { color:var(--warn); }
+  #tools { position:absolute; left:12px; bottom:12px; display:flex; gap:6px; flex-wrap:wrap; }
+  button { background:var(--panel); color:var(--text); border:1px solid var(--line); border-radius:6px; padding:5px 10px; font:inherit; cursor:pointer; }
+  button.on { border-color:var(--accent); color:var(--accent); }
+  #hint { position:absolute; left:12px; top:12px; color:var(--dim); font-size:12px; max-width:calc(100% - 320px); }
+  #msg { position:absolute; inset:0; display:grid; place-items:center; color:var(--dim); pointer-events:none; }
+  #clips { position:absolute; left:12px; bottom:52px; width:390px; background:rgba(27,30,36,.94); border:1px solid var(--line); border-radius:10px; padding:10px; display:grid; gap:6px; }
+  #clips.hidden { display:none; }
+  #clips input[type=text] { width:100%; background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:6px; padding:5px 8px; font:inherit; }
+  #clipsel { width:100%; height:132px; background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:6px; font:inherit; }
+  #clipsel option { padding:2px 6px; }
+  #clipsel option.loop::after { content:' ⟳'; color:var(--dim); }
+  .row { display:flex; gap:8px; align-items:center; }
+  #scrub { flex:1; accent-color:var(--accent); }
+  #time { color:var(--dim); font-variant-numeric:tabular-nums; white-space:nowrap; min-width:92px; text-align:right; }
+  #clipmeta { color:var(--dim); font-size:12px; }
+  #clipcap { font-size:12px; max-height:64px; overflow:auto; }
+  #clipcap div { padding:1px 0; }
+  label { display:inline-flex; gap:4px; align-items:center; color:var(--dim); white-space:nowrap; }
+  select.sm { background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:6px; padding:2px 4px; font:inherit; }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/" } }
+</script>
+</head>
+<body>
+<div id="app">
+  <aside id="side">
+    <div id="filters">
+      <input type="text" id="q" placeholder="Search id…" autocomplete="off">
+      <div class="row">
+        <select id="fcls"><option value="">all classes</option><option>biped</option><option>quadruped</option></select>
+        <select id="fsrc"><option value="">all sources</option><option>mixamo</option><option>objaverse</option></select>
+      </div>
+      <div class="row"><label><input type="checkbox" id="fflag"> flagged</label><label><input type="checkbox" id="fclip"> has clips</label><span id="count"></span></div>
+    </div>
+    <div id="list"></div>
+  </aside>
+  <main id="main">
+    <div id="hint">drag: orbit · wheel: zoom · right-drag: pan · ↑/↓ (j/k): character · ←/→ (,/.): clip · space: play/pause · s skeleton · w wireframe · g grid · f follow · r reset</div>
+    <div id="msg">loading list…</div>
+    <div id="info"></div>
+    <div id="clips" class="hidden">
+      <input type="text" id="cq" placeholder="Filter clips…" autocomplete="off">
+      <select id="clipsel" size="7"></select>
+      <div class="row">
+        <button id="bplay">⏸</button><input type="range" id="scrub" min="0" max="1000" value="0"><span id="time">0.00 / 0.00 s</span>
+      </div>
+      <div class="row">
+        <label>speed <select class="sm" id="speed"><option>0.25</option><option>0.5</option><option selected>1</option><option>2</option></select></label>
+        <label><input type="checkbox" id="loop" checked> loop</label>
+        <label><input type="checkbox" id="follow" checked> follow root</label>
+        <label><input type="checkbox" id="auto" checked> autoplay</label>
+      </div>
+      <div id="clipmeta"></div>
+      <div id="clipcap"></div>
+    </div>
+    <div id="tools">
+      <button id="bskel">Skeleton</button><button id="bwire">Wireframe</button>
+      <button id="bgrid" class="on">Grid</button><button id="bmesh" class="on">Mesh</button><button id="breset">Reset view</button>
+    </div>
+  </main>
+</div>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+const $ = id => document.getElementById(id);
+const main = $('main');
+const renderer = new THREE.WebGLRenderer({ antialias:true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+main.insertBefore(renderer.domElement, main.firstChild);
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x14161a);
+const camera = new THREE.PerspectiveCamera(40, 1, 0.01, 200);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+scene.add(new THREE.HemisphereLight(0xffffff, 0x303640, 1.6));
+const sun = new THREE.DirectionalLight(0xffffff, 1.8); sun.position.set(2, 4, 3); scene.add(sun);
+
+// ground plane y=0, 1 m cells, world axes (X red, Y green, Z blue = forward), 0.5 m ruler
+const grid = new THREE.GridHelper(10, 10, 0x56607a, 0x2e3442); scene.add(grid);
+const axes = new THREE.AxesHelper(0.6); axes.position.y = 0.002; scene.add(axes);
+const ruler = new THREE.Group();
+{ const m = new THREE.LineBasicMaterial({ color:0xe8b04a });
+  const pts = [new THREE.Vector3(0,0,0), new THREE.Vector3(0,2,0)];
+  ruler.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), m));
+  for (let y = 0.5; y <= 2.001; y += 0.5) {
+    ruler.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,y,0), new THREE.Vector3(0.12,y,0)]), m)); }
+  ruler.position.set(-2, 0, 0); }
+scene.add(ruler);
+
+let items = [], shown = [], cur = -1, model = null, skel = null, wire = false, showSkel = false, showMesh = true;
+let clips = [], shownClips = [], rootScale = 1, mixer = null, action = null, curClip = null, rootBone = null;
+const lastRoot = new THREE.Vector3(), tmp = new THREE.Vector3();
+const loader = new GLTFLoader(), clipCache = new Map(), clock = new THREE.Clock();
+let token = 0, clipToken = 0, mixamoIndex = null;
+
+function dispose(o) {
+  o.traverse(c => { c.geometry?.dispose(); const ms = [].concat(c.material || []);
+    ms.forEach(m => { for (const k in m) if (m[k]?.isTexture) m[k].dispose(); m.dispose(); }); });
+}
+
+function frame(box) {
+  const size = box.getSize(new THREE.Vector3()), ctr = box.getCenter(new THREE.Vector3());
+  const d = Math.max(size.x, size.y, size.z) * 1.9 + 0.3;
+  controls.target.copy(ctr);
+  camera.position.set(ctr.x + d * 0.55, ctr.y + d * 0.25, ctr.z + d * 0.85); // from the front-right (+Z is forward)
+  camera.near = d / 100; camera.far = d * 50; camera.updateProjectionMatrix(); controls.update();
+}
+
+// ------------------------------------------------------------------ characters
+async function select(i, keepView = false) {
+  if (i < 0 || i >= shown.length) return;
+  cur = i; const it = shown[i]; const my = ++token;
+  document.querySelectorAll('.item.sel').forEach(e => e.classList.remove('sel'));
+  const el = document.querySelector(`.item[data-i="${i}"]`); el?.classList.add('sel'); el?.scrollIntoView({ block:'nearest' });
+  $('msg').textContent = 'loading…'; $('msg').style.display = 'grid';
+  history.replaceState(null, '', '#' + it.key);
+  try {
+    const gltf = await loader.loadAsync(it.url);
+    if (my !== token) { dispose(gltf.scene); return; }
+    stopClip();
+    if (model) { scene.remove(model); dispose(model); }
+    if (skel) { scene.remove(skel); skel.dispose?.(); skel = null; }
+    model = gltf.scene; scene.add(model); model.updateMatrixWorld(true);
+    mixer = new THREE.AnimationMixer(model);
+    rootBone = null; model.traverse(o => { if (!rootBone && o.isBone && !o.parent?.isBone) rootBone = o; });
+    skel = new THREE.SkeletonHelper(model); skel.material.depthTest = false; skel.material.color.set(0xffd34d);
+    skel.renderOrder = 10; scene.add(skel);
+    applyToggles();
+    const box = new THREE.Box3().setFromObject(model);
+    if (!keepView) frame(box);
+    $('msg').style.display = 'none';
+  } catch (e) { $('msg').textContent = 'failed to load: ' + e.message; }
+  info(it);
+  loadClips(it, my);
+}
+
+function applyToggles() {
+  if (skel) skel.visible = showSkel;
+  if (model) model.traverse(c => { if (c.isMesh) { c.visible = showMesh;
+    [].concat(c.material).forEach(m => { m.wireframe = wire; }); } });
+  $('bskel').classList.toggle('on', showSkel); $('bwire').classList.toggle('on', wire);
+  $('bgrid').classList.toggle('on', grid.visible); $('bmesh').classList.toggle('on', showMesh);
+}
+
+function info(it) {
+  const f = n => (+n).toFixed(2);
+  $('info').innerHTML = `<h3>${it.key}</h3><table>
+    <tr><td>class</td><td>${it.cls} <span style="color:var(--dim)">(${it.category})</span></td></tr>
+    <tr><td>height</td><td>${f(it.height)} m</td></tr>
+    <tr><td>extent x/y/z</td><td>${it.extent.map(f).join(' / ')} m</td></tr>
+    <tr><td>scale applied</td><td>×${it.scale.toFixed(4)} (${it.scale_mode})</td></tr>
+    <tr><td>yaw fixed</td><td>${f(it.yaw)}°</td></tr>
+    <tr><td>triangles</td><td>${it.tris.toLocaleString()}</td></tr>
+    <tr><td>joints</td><td>${it.joints}</td></tr>
+    <tr><td>clips</td><td>${it.clips}${it.source === 'mixamo' ? ' (shared)' : ''}</td></tr>
+    <tr><td>file</td><td>${it.mb} MB</td></tr>
+    <tr><td>flags</td><td>${it.flags.length ? '<span class="flag">' + it.flags.join(', ') + '</span>' : '—'}</td></tr></table>`;
+}
+
+function refilter() {
+  const q = $('q').value.trim().toLowerCase(), c = $('fcls').value, s = $('fsrc').value, fl = $('fflag').checked, fc = $('fclip').checked;
+  const prev = shown[cur]?.key;
+  shown = items.filter(it => (!q || it.key.toLowerCase().includes(q)) && (!c || it.cls === c) && (!s || it.source === s) && (!fl || it.flags.length) && (!fc || it.clips));
+  $('count').textContent = `${shown.length} / ${items.length}`;
+  $('list').innerHTML = shown.map((it, i) => `<div class="item" data-i="${i}"><span class="n">${it.id}</span>
+    <span class="m">${it.source === 'mixamo' ? 'mx' : 'ov'} · ${it.cls === 'biped' ? 'bi' : 'quad'} · ${it.clips}c${it.flags.length ? ' <span class="w">⚑</span>' : ''}</span></div>`).join('');
+  cur = prev ? shown.findIndex(it => it.key === prev) : -1;
+  if (cur >= 0) document.querySelector(`.item[data-i="${cur}"]`)?.classList.add('sel');
+}
+
+// ------------------------------------------------------------------ clips
+async function loadClips(it, my) {
+  clips = []; rootScale = 1;
+  const keepName = curClip?.name;
+  if (!it.clips) { renderClipList(); return; }
+  const base = `/data/characters/${it.key}/anims/`;
+  try {
+    const d = await (await fetch(base + 'anims.json')).json();
+    if (d._shared) {
+      rootScale = d._shared.root_scale;
+      mixamoIndex ??= await (await fetch('/data/clips/mixamo/clips.json')).json();
+      clips = Object.entries(mixamoIndex).filter(([k]) => k !== '_skeleton').map(([name, m]) => ({ name, m, url: '/data/clips/mixamo/' + m.file }));
+      clips.push(...Object.entries(d).filter(([k]) => k.startsWith('rt__')).map(([name, m]) => ({ name, m, url: base + m.file })));
+    } else clips = Object.entries(d).map(([name, m]) => ({ name, m, url: base + m.file }));
+  } catch (e) { clips = []; }
+  if (my !== token) return;
+  clips.sort((a, b) => a.name.localeCompare(b.name));
+  renderClipList();
+  const again = clips.find(c => c.name === keepName) || clips[0];   // keep the same motion when browsing Mixamo characters
+  if (again && $('auto').checked) playClip(again);
+  else if (again) { $('clipsel').value = again.name; showClipMeta(again); }
+}
+
+function renderClipList() {
+  $('clips').classList.toggle('hidden', !clips.length);
+  const q = $('cq').value.trim().toLowerCase();
+  shownClips = clips.filter(c => !q || c.name.toLowerCase().includes(q) || (c.m.motion_captions || []).some(t => t.toLowerCase().includes(q)));
+  const sel = $('clipsel'); sel.innerHTML = '';
+  for (const c of shownClips) { const o = document.createElement('option'); o.value = c.name; o.textContent = c.name; if (c.m.loop) o.className = 'loop'; if (c.m.retargeted) o.textContent = '⇄ ' + c.name; sel.appendChild(o); }
+  if (curClip) sel.value = curClip.name;
+}
+
+function showClipMeta(c, bound) {
+  const m = c.m;
+  $('clipmeta').textContent = `${m.frames} frames @ ${m.fps} fps · ${m.duration_s}s · ${m.loop ? 'loop' : 'one-shot'} · root travel ${m.root_travel_m} m` +
+    (bound ? ` · bound ${bound}` : '') + (rootScale !== 1 && !m.retargeted ? ` · root ×${rootScale.toFixed(3)}` : '') +
+    (m.retargeted ? ` · retargeted from ${m.source_clip}: lift ${(+m.retargeted.lift_max).toFixed(2)} m, foot skate ${(+m.retargeted.skate_mean).toFixed(3)} m/s, reach fails ${m.retargeted.reach_fail_frames}` : '');
+  $('clipcap').innerHTML = '';
+  for (const t of m.motion_captions || []) { const d = document.createElement('div'); d.textContent = t; $('clipcap').appendChild(d); }
+}
+
+function stopClip() { if (action) { action.stop(); } mixer?.stopAllAction(); action = null; }
+
+async function playClip(c) {
+  if (!model || !mixer) return;
+  const my = ++clipToken; curClip = c; $('clipsel').value = c.name;
+  let gltf = clipCache.get(c.url);
+  try {
+    if (!gltf) { gltf = await loader.loadAsync(c.url); clipCache.set(c.url, gltf); if (clipCache.size > 200) clipCache.delete(clipCache.keys().next().value); }
+  } catch (e) { $('clipmeta').textContent = 'failed to load clip: ' + e.message; return; }
+  if (my !== clipToken || !mixer) return;
+  let clip = gltf.animations[0].clone();
+  if (rootScale !== 1 && !c.m.retargeted) clip.tracks.forEach(t => { if (t.name.endsWith('.position')) { const v = t.values.slice(); for (let i = 0; i < v.length; i++) v[i] *= rootScale; t.values = v; } });
+  let ok = 0;   // tracks whose bone exists on this character (a quick check that names line up)
+  for (const t of clip.tracks) { const p = THREE.PropertyBinding.parseTrackName(t.name); if (THREE.PropertyBinding.findNode(model, p.nodeName)) ok++; }
+  stopClip();
+  action = mixer.clipAction(clip); applyLoop(); action.play();
+  action.paused = false; $('bplay').textContent = '⏸';
+  lastRoot.set(NaN, 0, 0);
+  showClipMeta(c, `${ok}/${clip.tracks.length} tracks`);
+}
+
+function applyLoop() {
+  if (!action) return;
+  action.setLoop($('loop').checked ? THREE.LoopRepeat : THREE.LoopOnce, Infinity); action.clampWhenFinished = true;
+}
+
+function togglePlay() {
+  if (!action) return;
+  if (!action.paused && action.isRunning()) { action.paused = true; $('bplay').textContent = '▶'; return; }
+  if (action.time >= action.getClip().duration - 1e-3) action.reset().play();
+  action.paused = false; $('bplay').textContent = '⏸';
+}
+
+function stepClip(d) {
+  if (!shownClips.length) return;
+  const i = Math.max(0, Math.min(shownClips.length - 1, shownClips.findIndex(c => c === curClip) + d));
+  playClip(shownClips[i]);
+}
+
+$('clipsel').addEventListener('change', e => { const c = clips.find(c => c.name === e.target.value); if (c) playClip(c); });
+$('cq').addEventListener('input', renderClipList);
+$('bplay').onclick = togglePlay;
+$('loop').onchange = applyLoop;
+$('scrub').addEventListener('input', e => {
+  if (!action) return;
+  action.paused = true; $('bplay').textContent = '▶';
+  action.time = (e.target.value / 1000) * action.getClip().duration; mixer.update(0); lastRoot.set(NaN, 0, 0);
+});
+
+// ------------------------------------------------------------------ ui
+$('list').addEventListener('click', e => { const t = e.target.closest('.item'); if (t) select(+t.dataset.i, false); });
+['q', 'fcls', 'fsrc', 'fflag', 'fclip'].forEach(id => $(id).addEventListener('input', refilter));
+$('bskel').onclick = () => { showSkel = !showSkel; applyToggles(); };
+$('bwire').onclick = () => { wire = !wire; applyToggles(); };
+$('bgrid').onclick = () => { grid.visible = axes.visible = ruler.visible = !grid.visible; applyToggles(); };
+$('bmesh').onclick = () => { showMesh = !showMesh; applyToggles(); };
+$('breset').onclick = () => model && frame(new THREE.Box3().setFromObject(model));
+addEventListener('keydown', e => {
+  if (['INPUT', 'SELECT'].includes(e.target.tagName) && e.target.type !== 'range' && e.target.type !== 'checkbox') return;
+  const k = e.key;
+  if (k === 'ArrowDown' || k === 'j') { select(Math.min(cur + 1, shown.length - 1), true); e.preventDefault(); }
+  else if (k === 'ArrowUp' || k === 'k') { select(Math.max(cur - 1, 0), true); e.preventDefault(); }
+  else if (k === 'ArrowRight' || k === '.') { stepClip(1); e.preventDefault(); }
+  else if (k === 'ArrowLeft' || k === ',') { stepClip(-1); e.preventDefault(); }
+  else if (k === ' ') { togglePlay(); e.preventDefault(); }
+  else if (k === 'f') $('follow').click();
+  else if (k === 's') $('bskel').click(); else if (k === 'w') $('bwire').click();
+  else if (k === 'g') $('bgrid').click(); else if (k === 'r') $('breset').click();
+});
+
+function resize() {
+  const w = main.clientWidth, h = main.clientHeight;
+  renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
+}
+addEventListener('resize', resize); resize();
+(function loop() {
+  requestAnimationFrame(loop);
+  const dt = clock.getDelta();
+  if (mixer && action) {
+    mixer.update(dt * +$('speed').value);
+    const dur = action.getClip().duration;
+    $('scrub').value = Math.round(Math.min(action.time, dur) / dur * 1000);
+    $('time').textContent = `${Math.min(action.time, dur).toFixed(2)} / ${dur.toFixed(2)} s`;
+    if (!$('loop').checked && !action.isRunning() && !action.paused) $('bplay').textContent = '▶';
+    if (rootBone && $('follow').checked) {          // keep the character in view while its root travels
+      model.updateMatrixWorld(true); rootBone.getWorldPosition(tmp);
+      if (!Number.isNaN(lastRoot.x)) { const dx = tmp.x - lastRoot.x, dz = tmp.z - lastRoot.z; camera.position.x += dx; camera.position.z += dz; controls.target.x += dx; controls.target.z += dz; }
+      lastRoot.copy(tmp);
+    } else lastRoot.set(NaN, 0, 0);
+  }
+  controls.update(); renderer.render(scene, camera);
+})();
+
+try {
+  items = await (await fetch('/api/characters')).json();
+  $('msg').textContent = 'select a character';
+  refilter();
+  const want = location.hash.slice(1), i = shown.findIndex(it => it.key === want);
+  select(i >= 0 ? i : 0);
+} catch (e) { $('msg').textContent = 'could not load /api/characters — run: python3 viewer/serve.py'; }
+</script>
+</body>
+</html>

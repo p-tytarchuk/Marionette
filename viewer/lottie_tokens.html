@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Marionette Lottie Tokens</title>
+<link rel="icon" href="data:,">
+<style>
+  :root { --bg:#14161a; --panel:#1b1e24; --line:#2a2e36; --text:#d8dce4; --dim:#8a92a0; --accent:#6ea8ff; --warn:#e8b04a; --bad:#ef6b6b; --good:#5fcf8a; --hl:#ffd24a; }
+  * { box-sizing:border-box; }
+  html,body { margin:0; height:100%; background:var(--bg); color:var(--text); font:13px/1.4 system-ui,-apple-system,sans-serif; }
+  #app { display:grid; grid-template-columns:300px 1fr; height:100%; }
+  #side { background:var(--panel); border-right:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  #filters { padding:10px; border-bottom:1px solid var(--line); display:grid; gap:6px; }
+  select, input[type=text] { width:100%; background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:6px; padding:6px 8px; font:inherit; }
+  #list { overflow:auto; flex:1; }
+  .item { padding:6px 10px; cursor:pointer; border-bottom:1px solid #20242b; }
+  .item:hover { background:#222730; } .item.sel { background:#25324a; }
+  .item .a { display:flex; justify-content:space-between; gap:8px; } .item .m { color:var(--dim); font-size:11px; }
+  .item .c { color:var(--dim); font-size:11px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .tag { font-size:10px; border:1px solid var(--line); border-radius:999px; padding:0 6px; color:var(--dim); } .tag.none { color:var(--warn); border-color:var(--warn); }
+  #main { overflow:auto; padding:12px 16px 24px; min-width:0; }
+  #head h2 { margin:0 0 2px; font-size:15px; } #cap { color:var(--dim); max-width:980px; margin-bottom:8px; }
+  .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin:6px 0; }
+  button { background:var(--panel); color:var(--text); border:1px solid var(--line); border-radius:6px; padding:5px 10px; font:inherit; cursor:pointer; }
+  button:hover { border-color:var(--accent); } button.on { border-color:var(--accent); color:var(--accent); }
+  input[type=range] { flex:1; min-width:160px; }
+  .views { display:flex; gap:14px; flex-wrap:wrap; align-items:flex-start; }
+  .view { position:relative; background:#fff; border:1px solid var(--line); border-radius:8px; overflow:hidden; }
+  .view.dark { background:#0f1114; }
+  .view > div, .view > canvas { position:absolute; inset:0; } .view canvas { pointer-events:auto; }
+  .cap2 { color:var(--dim); font-size:11px; margin:3px 0 0; }
+  #msg { padding:10px 12px; border:1px solid var(--warn); border-radius:8px; color:var(--warn); margin:8px 0; max-width:980px; }
+  #joints { margin-top:10px; max-height:300px; overflow:auto; border:1px solid var(--line); border-radius:8px; max-width:980px; }
+  .j { display:grid; grid-template-columns:160px 52px 1fr; gap:8px; align-items:center; padding:3px 8px; border-bottom:1px solid #20242b; cursor:pointer; font-size:12px; }
+  .j:hover { background:#222730; } .j.sel { background:#3a3320; }
+  .j .n { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } .j .d { color:var(--dim); }
+  #chart { display:block; background:var(--panel); border:1px solid var(--line); border-radius:8px; margin-top:10px; }
+  .legend span { margin-right:12px; } .legend i { display:inline-block; width:10px; height:3px; margin-right:5px; vertical-align:middle; }
+  #scal { color:var(--dim); font-size:12px; margin-top:6px; max-width:980px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <aside id="side">
+    <div id="filters">
+      <select id="fsrc"><option value="demo">46 samples (instant)</option><option value="full">full dataset: all Qwen-relevant animations (loads on click)</option></select>
+      <select id="fstat"><option value="">all animations</option><option value="ok">with tokens</option><option value="no_tokens">no tokens (motion not in layer transforms)</option></select>
+      <input type="text" id="q" placeholder="Search id or caption…" autocomplete="off">
+      <select id="fbp"><option value="">two-leg and four-leg</option><option value="2leg">two-leg</option><option value="4leg">four-leg</option></select>
+      <div class="m" id="count" style="color:var(--dim)"></div>
+      <a href="/viewer/home.html" style="color:var(--accent)">← menu</a>
+    </div>
+    <div id="list"></div><button id="more" hidden style="margin:6px 10px">show 300 more</button>
+  </aside>
+  <main id="main">
+    <div id="head"><h2 id="title">Lottie joint tokens</h2><div id="cap">Pick an animation on the left.</div></div>
+    <div id="msg" hidden></div>
+    <div class="row">
+      <button id="bplay">⏸</button><input type="range" id="scrub" min="0" max="1000" value="0"><span id="time" style="min-width:90px"></span>
+      <label>speed <select id="speed" style="width:70px"><option>0.25</option><option>0.5</option><option selected>1</option><option>2</option></select></label>
+    </div>
+    <div class="row">
+      <label><input type="checkbox" id="kall"> also draw dropped joints</label>
+      <label><input type="checkbox" id="ktrail"> trails</label>
+      <label><input type="checkbox" id="klab"> names</label>
+      <label><input type="checkbox" id="kshow" checked> show joints over the animation</label>
+    </div>
+    <div class="views">
+      <div><div class="view" id="v1"><div id="render"></div><canvas id="ov"></canvas></div><div class="cap2">the animation (lottie-web) with the computed joints on top</div></div>
+      <div><div class="view dark" id="v2"><canvas id="sk"></canvas></div><div class="cap2">the same joints and parent links alone; yellow = selected</div></div>
+    </div>
+    <div id="scal"></div>
+    <div class="legend row" style="margin-top:10px"><b>Selected joint's tokens</b>
+      <span><i style="background:#6ea8ff"></i>height</span><span><i style="background:#5fcf8a"></i>distance from centroid</span><span><i style="background:#ef6b6b"></i>vertical speed</span><span><i style="background:#e8b04a"></i>horizontal speed</span></div>
+    <canvas id="chart" width="980" height="190"></canvas>
+    <div class="cap2">128-frame timeline (shorter clips are padded by holding the last frame); the vertical bar is the current frame. Click a joint here, in the views, or in the list.</div>
+    <div id="joints"></div>
+  </main>
+</div>
+<script src="/viewer/lottie.min.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const COL = ['#6ea8ff', '#5fcf8a', '#ef6b6b', '#e8b04a'];
+let index = [], shown = [], cur = null, anim = null, t = 0, playing = true, last = 0, sel = -1, VW = 480;
+
+let full = null, mode = 'demo', limit = 300, loading = false;
+async function setMode(m) {
+  mode = m; limit = 300; $('msg').hidden = true;
+  if (m === 'full' && !full) {
+    $('count').textContent = 'loading the index…';
+    const c = await (await fetch('/data/analysis/lottie_browser_index.json')).json();
+    full = c.id.map((id, k) => ({ id, shard: c.shard[k], body_plan: c.bp[k], subject: c.subj[k], kept: c.joints[k], frames: c.frames[k], caption: c.cap[k], status: c.joints[k] ? 'ok' : 'no_tokens', total: '' }));
+  }
+  index = m === 'full' ? full : demo; filter(); if (shown.length) pick(0);
+}
+let demo = [];
+fetch('/data/lottie_tokens_demo/index.json').then(r => r.json()).then(d => { demo = d; setMode('demo'); })
+  .catch(() => { $('cap').textContent = 'No samples yet: run  python scripts/lottie2d/lottie_tokens.py demo --shards 3,5,7,9 --limit 120 --relevant'; });
+$('fsrc').addEventListener('change', e => setMode(e.target.value));
+$('more').addEventListener('click', () => { limit += 300; filter(true); });
+
+function filter(keepSel) {
+  const q = $('q').value.toLowerCase(), s = $('fstat').value, bp = $('fbp').value;
+  shown = index.filter(it => (!s || it.status === s) && (!bp || it.body_plan === bp) && (!q || (it.id + ' ' + (it.caption || '')).toLowerCase().includes(q)));
+  $('count').textContent = `${shown.length.toLocaleString()} / ${index.length.toLocaleString()}` + (shown.length > limit ? ` (showing ${limit})` : '');
+  $('more').hidden = shown.length <= limit;
+  $('list').innerHTML = shown.slice(0, limit).map((it, i) => `<div class="item" data-i="${i}"><div class="a"><span>${it.id}</span><span class="tag ${it.status === 'ok' ? '' : 'none'}">${it.status === 'ok' ? it.kept + ' joints' : 'no tokens'}</span></div><div class="m">${it.body_plan || ''}${it.subject ? ' · ' + it.subject : ''} · ${it.frames || '?'} frames${it.total !== '' ? ' · ' + it.total + ' layers' : ''}</div><div class="c">${(it.caption || '').replace(/</g, '&lt;')}</div></div>`).join('');
+}
+$('q').addEventListener('input', () => filter()); $('fstat').addEventListener('change', () => filter()); $('fbp').addEventListener('change', () => filter());
+$('list').addEventListener('click', e => { const el = e.target.closest('.item'); if (el) pick(+el.dataset.i); });
+
+async function pick(i) {
+  const it = shown[i]; if (!it) return;
+  document.querySelectorAll('.item').forEach(e => e.classList.toggle('sel', +e.dataset.i === i));
+  if (loading) return; loading = true;
+  $('title').textContent = `${it.id} …`; $('cap').textContent = mode === 'full' ? 'reading it out of the corpus shard (1-3 s)…' : '';
+  try {
+    cur = mode === 'full' ? await (await fetch(`/api/lottie_item?id=${it.id}&shard=${it.shard}`)).json() : await (await fetch(`/data/lottie_tokens_demo/${it.id}.json`)).json();
+  } finally { loading = false; }
+  if (cur.error) { $('cap').textContent = 'could not load: ' + cur.error; cur = null; return; }
+  cur.meta = { ...it, w: cur.lottie.w, h: cur.lottie.h, status: cur.tokens ? 'ok' : 'no_tokens', frames: cur.fk.frames };
+  $('title').textContent = `${it.id} · ${it.body_plan || ''}`; $('cap').textContent = it.caption || '';
+  const w = it.w || 400, h = it.h || 400, k = Math.min(VW / w, VW / h); VW = 480;
+  const W = Math.round(w * k), H = Math.round(h * k); cur.k = k; cur.W = W; cur.H = H;
+  for (const id of ['v1', 'v2']) { $(id).style.width = W + 'px'; $(id).style.height = H + 'px'; }
+  for (const id of ['ov', 'sk']) { $(id).width = W; $(id).height = H; $(id).style.width = W + 'px'; $(id).style.height = H + 'px'; }
+  if (anim) anim.destroy(); $('render').innerHTML = '';
+  anim = lottie.loadAnimation({ container: $('render'), renderer: 'svg', loop: false, autoplay: false, animationData: cur.lottie });
+  cur.T = cur.fk.frames; cur.F = cur.fk.pos.length; sel = -1; t = 0;
+  const ok = cur.meta.status === 'ok';
+  $('msg').hidden = ok; if (!ok) $('msg').textContent = 'No tokens for this animation: fewer than two layers move (or fewer than two layers at all). Its motion lives inside shape groups or paths, which are not joints yet, so the joints below stay still while the animation moves.';
+  $('scal').textContent = ok ? `animation scalars: log duration ${cur.tokens.scal[0]}, log warp ${cur.tokens.scal[1]}, joints/100 ${cur.tokens.scal[2]}, leaf share ${cur.tokens.scal[3]}, height extent ${cur.tokens.scal[4]}, width extent ${cur.tokens.scal[5]}, fps/30 ${cur.tokens.scal[7]}` : '';
+  buildList(); draw();
+}
+
+function keptIdx() { return cur.fk.selected; }
+function buildList() {
+  const kept = keptIdx(), box = $('joints');
+  box.innerHTML = kept.map((j, k) => {
+    let d = 0, a = j; while (cur.fk.parents[a] >= 0 && d < 99) { a = cur.fk.parents[a]; d++; }
+    return `<div class="j" data-k="${k}"><span class="n" title="${cur.fk.names[j].replace(/"/g, '')}">${(cur.fk.names[j] || '(unnamed)').replace(/</g, '&lt;')}</span><span class="d">depth ${d}</span><canvas width="300" height="22" data-k="${k}"></canvas></div>`;
+  }).join('');
+  box.querySelectorAll('canvas').forEach(c => spark(c, +c.dataset.k));
+}
+function spark(c, k) {
+  const g = c.getContext('2d'), tk = cur.tokens.joint[k], n = cur.tokens.n_valid; g.clearRect(0, 0, 300, 22);
+  for (const ch of [2, 3]) {
+    const v = tk.slice(0, n).map(r => r[ch]), mx = Math.max(0.05, ...v.map(Math.abs));
+    g.strokeStyle = COL[ch]; g.beginPath(); v.forEach((x, i) => { const px = i / Math.max(n - 1, 1) * 299, py = 11 - x / mx * 9; i ? g.lineTo(px, py) : g.moveTo(px, py); }); g.stroke();
+  }
+}
+$('joints').addEventListener('click', e => { const el = e.target.closest('.j'); if (el) { sel = +el.dataset.k; draw(); } });
+
+function pos(j, f) { const p = cur.fk.pos[f][j]; return [p[0] * cur.k, p[1] * cur.k]; }
+function drawJoints(ctx, bg) {
+  const W = cur.W, H = cur.H, f = Math.min(cur.F - 1, Math.floor(t)), kept = keptIdx(), keptSet = new Set(kept);
+  ctx.clearRect(0, 0, W, H);
+  if (cur.fk.pos[0].length === 0) return;
+  const all = $('kall').checked, nm = cur.fk.names, par = cur.fk.parents.slice();
+  if (cur.tokens && cur.tokens.parents) kept.forEach((j, k) => { const pk = cur.tokens.parents[k]; par[j] = pk >= 0 ? kept[pk] : -1; });   // the tree the tokens use (orphan roots joined)
+  const list = all ? [...Array(cur.fk.pos[0].length).keys()] : kept;
+  if ($('ktrail').checked) for (const j of list) { ctx.strokeStyle = keptSet.has(j) ? 'rgba(239,107,107,.35)' : 'rgba(110,168,255,.2)'; ctx.beginPath(); for (let q = 0; q <= f; q += 2) { const [x, y] = pos(j, q); q ? ctx.lineTo(x, y) : ctx.moveTo(x, y); } ctx.stroke(); }
+  for (const j of list) { const p = par[j]; if (p < 0 || !(all || keptSet.has(p))) continue; const [x0, y0] = pos(p, f), [x1, y1] = pos(j, f);
+    ctx.strokeStyle = keptSet.has(j) && keptSet.has(p) ? '#ef4b4b' : 'rgba(110,168,255,.55)'; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke(); }
+  for (const j of list) { const [x, y] = pos(j, f), k = kept.indexOf(j), s = k === sel;
+    ctx.fillStyle = s ? '#ffd24a' : keptSet.has(j) ? '#ef4b4b' : '#6ea8ff'; ctx.beginPath(); ctx.arc(x, y, s ? 6 : keptSet.has(j) ? 3.4 : 2.2, 0, 7); ctx.fill();
+    if (s) { ctx.strokeStyle = '#000'; ctx.lineWidth = 1; ctx.stroke(); }
+    if ($('klab').checked && keptSet.has(j)) { ctx.fillStyle = bg ? '#222' : '#ddd'; ctx.font = '10px system-ui'; ctx.fillText(nm[j].slice(0, 14), x + 5, y - 4); } }
+}
+function chart() {
+  const c = $('chart'), g = c.getContext('2d'); g.clearRect(0, 0, c.width, c.height);
+  g.fillStyle = '#8a92a0'; g.font = '12px system-ui';
+  if (sel < 0 || !cur.tokens) { g.fillText(cur.tokens ? 'click a joint' : 'no tokens', 12, 24); return; }
+  const tk = cur.tokens.joint[sel], n = cur.tokens.n_valid, X = i => 40 + i / 127 * (c.width - 56);
+  for (let ch = 0; ch < 4; ch++) {
+    const v = tk.map(r => r[ch]), lo = Math.min(...v), hi = Math.max(...v), span = Math.max(hi - lo, 0.05), Y = x => c.height - 16 - (x - lo) / span * (c.height - 34);
+    g.strokeStyle = COL[ch]; g.lineWidth = 1.5; g.beginPath(); v.forEach((x, i) => i ? g.lineTo(X(i), Y(x)) : g.moveTo(X(i), Y(x))); g.stroke();
+    g.fillStyle = COL[ch]; g.fillText(`${['height', 'dist', 'v-speed', 'h-speed'][ch]} ${lo.toFixed(2)}…${hi.toFixed(2)}`, 44 + ch * 170, 14);
+  }
+  g.strokeStyle = '#555'; g.beginPath(); g.moveTo(X(n - 1), 18); g.lineTo(X(n - 1), c.height - 14); g.stroke();
+  const cx = X(Math.min(127, t / Math.max(cur.T - 1, 1) * (n - 1))); g.strokeStyle = '#ffd24a'; g.beginPath(); g.moveTo(cx, 18); g.lineTo(cx, c.height - 14); g.stroke();
+}
+function draw() {
+  if (!cur) return;
+  anim.goToAndStop(Math.min(cur.T - 1, t), true);
+  drawJoints($('ov').getContext('2d'), true); if (!$('kshow').checked) $('ov').getContext('2d').clearRect(0, 0, cur.W, cur.H);
+  drawJoints($('sk').getContext('2d'), false); chart();
+  $('scrub').value = Math.round(t / Math.max(cur.T - 1, 1) * 1000); $('time').textContent = `frame ${Math.floor(t)} / ${cur.T - 1}`;
+}
+function tick(ts) {
+  if (cur && playing) { const dt = (ts - last) / 1000; t += dt * cur.fk.fps * +$('speed').value; if (t > cur.T - 1) t = 0; draw(); }
+  last = ts; requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+$('bplay').onclick = () => { playing = !playing; $('bplay').textContent = playing ? '⏸' : '▶'; };
+$('scrub').addEventListener('input', e => { playing = false; $('bplay').textContent = '▶'; if (cur) { t = e.target.value / 1000 * (cur.T - 1); draw(); } });
+for (const id of ['kall', 'ktrail', 'klab', 'kshow']) $(id).addEventListener('change', draw);
+for (const id of ['ov', 'sk']) $(id).addEventListener('click', e => {
+  if (!cur || cur.fk.pos[0].length === 0) return; const r = e.target.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top, f = Math.min(cur.F - 1, Math.floor(t));
+  let best = -1, bd = 1e9; keptIdx().forEach((j, k) => { const [px, py] = pos(j, f), d = Math.hypot(px - x, py - y); if (d < bd) { bd = d; best = k; } });
+  if (bd < 24) { sel = best; draw(); }
+});
+document.addEventListener('keydown', e => { if (e.key === ' ') { e.preventDefault(); $('bplay').click(); } else if (e.key === 'ArrowDown' || e.key === 'j') { const i = document.querySelector('.item.sel'); const n = i ? +i.dataset.i + 1 : 0; if (n < shown.length) pick(n); } else if (e.key === 'ArrowUp' || e.key === 'k') { const i = document.querySelector('.item.sel'); const n = i ? +i.dataset.i - 1 : 0; if (n >= 0) pick(n); } });
+</script>
+</body>
+</html>

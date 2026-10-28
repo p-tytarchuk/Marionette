@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Marionette Lottie Search</title>
+<link rel="icon" href="data:,">
+<style>
+  :root { --bg:#14161a; --panel:#1b1e24; --line:#2a2e36; --text:#d8dce4; --dim:#8a92a0; --accent:#6ea8ff; --warn:#e8b04a; --good:#5fcf8a; }
+  * { box-sizing:border-box; }
+  html,body { margin:0; background:var(--bg); color:var(--text); font:13px/1.45 system-ui,-apple-system,sans-serif; }
+  .wrap { max-width:1380px; margin:0 auto; padding:18px 20px 40px; }
+  h1 { font-size:20px; margin:0 0 2px; } .sub { color:var(--dim); margin:0 0 12px; max-width:900px; }
+  a { color:var(--accent); }
+  .bar { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin:8px 0; }
+  input[type=text] { flex:1; min-width:280px; background:var(--panel); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:9px 12px; font:inherit; font-size:14px; }
+  select { background:var(--panel); color:var(--text); border:1px solid var(--line); border-radius:6px; padding:6px 8px; font:inherit; }
+  button { background:var(--accent); color:#0c1220; border:0; border-radius:8px; padding:9px 18px; font:inherit; font-weight:600; cursor:pointer; }
+  button.chip { background:var(--panel); color:var(--text); border:1px solid var(--line); font-weight:400; padding:3px 10px; border-radius:999px; }
+  button.chip:hover { border-color:var(--accent); color:var(--accent); }
+  #used { color:var(--dim); margin:6px 0 2px; } #used b { color:var(--text); font-weight:500; }
+  .banner { border:1px solid var(--line); border-left:3px solid var(--warn); border-radius:6px; padding:6px 10px; color:var(--dim); margin:8px 0 14px; max-width:980px; }
+  .cols { display:grid; grid-template-columns:minmax(0,1fr) 400px; gap:22px; align-items:start; }
+  @media (max-width:1000px) { .cols { grid-template-columns:1fr; } }
+  h2 { font-size:12px; text-transform:uppercase; letter-spacing:1.1px; color:var(--dim); margin:0 0 8px; font-weight:600; }
+  #lot { display:grid; grid-template-columns:repeat(auto-fill, minmax(210px, 1fr)); gap:12px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:10px; overflow:hidden; display:flex; flex-direction:column; }
+  .anim { background:#fff; height:180px; } .anim svg { width:100%; height:100%; }
+  .meta { padding:7px 9px 9px; } .meta .top { display:flex; justify-content:space-between; color:var(--dim); font-size:11px; }
+  .score { color:var(--good); font-variant-numeric:tabular-nums; }
+  .cap { margin-top:3px; display:-webkit-box; -webkit-line-clamp:4; -webkit-box-orient:vertical; overflow:hidden; font-size:12px; color:#c4c9d4; }
+  #d3 .row { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:7px 10px; margin-bottom:7px; }
+  #d3 .row .top { display:flex; justify-content:space-between; color:var(--dim); font-size:11px; }
+  #msg { color:var(--warn); margin:10px 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Lottie search</h1>
+  <p class="sub">Type what should move. The nearest animations in the Lottie corpus and the nearest 3D clips are found with the joint model trained on both. <a href="/viewer/home.html">← menu</a></p>
+  <form class="bar" id="form">
+    <input type="text" id="q" value="a man walks forward" autocomplete="off" autofocus>
+    <button type="submit">Search</button>
+  </form>
+  <div class="bar">
+    <label><input type="checkbox" id="rewrite" checked> rewrite into dataset wording</label>
+    <label>show <select id="k"><option>6</option><option selected>12</option><option>24</option></select></label>
+    <label>model <select id="tag"></select></label>
+    <span id="chips"></span>
+  </div>
+  <div class="banner"><b>Retrieval, not generation.</b> Every animation shown is an existing one from the dataset. Locomotion (walk, run, jump, dance) matches best; small gestures (wave, point, nod) are weak from the Lottie side.</div>
+  <div id="used"></div><div id="msg"></div>
+  <div class="cols">
+    <section><h2>Nearest Lottie animations</h2><div id="lot"></div></section>
+    <section><h2>Nearest 3D clips</h2><div id="d3"></div></section>
+  </div>
+</div>
+<script src="/viewer/lottie.min.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const EXAMPLES = ['a man walks forward', 'a person runs', 'jumps in the air', 'a woman dances', 'sits and gestures with her hands', 'waves hello', 'a dog walks', 'a bird flies'];
+$('chips').innerHTML = EXAMPLES.map(e => `<button type="button" class="chip">${e}</button>`).join('');
+$('chips').addEventListener('click', e => { if (e.target.classList.contains('chip')) { $('q').value = e.target.textContent; search(); } });
+fetch('/api/lottie_search?tags=1').then(r => r.json()).then(t => { $('tag').innerHTML = t.map(x => `<option ${x === 'mixed' ? 'selected' : ''}>${x}</option>`).join(''); if (!t.length) $('msg').textContent = 'No search index yet: python scripts/lottie2d/lottie_search.py build --tag mixed'; });
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+let anims = [], seq = 0;
+function clearAnims() { anims.forEach(a => { try { a.destroy(); } catch (e) {} }); anims = []; }
+
+async function search() {
+  const q = $('q').value.trim(); if (!q) return;
+  const my = ++seq; $('msg').textContent = 'searching…'; $('used').textContent = '';
+  const url = `/api/lottie_search?q=${encodeURIComponent(q)}&k=${$('k').value}&rewrite=${$('rewrite').checked ? 1 : 0}&tag=${encodeURIComponent($('tag').value || 'mixed')}`;
+  let r; try { r = await (await fetch(url)).json(); } catch (e) { $('msg').textContent = 'the server did not answer'; return; }
+  if (my !== seq) return;
+  if (r.error) { $('msg').textContent = r.error; return; }
+  $('msg').textContent = '';
+  $('used').innerHTML = `searched for <b>${esc(r.text_used)}</b> · model ${esc(r.index)}`;
+  clearAnims();
+  $('lot').innerHTML = r.lottie.map((h, i) => `<div class="card"><div class="anim" id="a${i}"></div><div class="meta"><div class="top"><span>${esc(h.id)} · ${esc(h.body_plan)}</span><span class="score">${h.score.toFixed(3)}</span></div><div class="cap" title="${esc(h.caption)}">${esc(h.caption)}</div></div></div>`).join('');
+  $('d3').innerHTML = r.d3.map(h => `<div class="row"><div class="top"><span>${esc(h.cls)} · ${esc(h.key.split('|')[1].slice(0, 28))}</span><span class="score">${h.score.toFixed(3)}</span></div><div>${esc(h.caption)}</div></div>`).join('');
+  r.lottie.forEach(async (h, i) => {        // each animation is read out of the corpus on its own (0.2-0.7 s)
+    try {
+      const d = await (await fetch(`/api/lottie_item?id=${h.id}&shard=${h.shard}&raw=1`)).json();
+      if (my !== seq || d.error || !$('a' + i)) return;
+      anims.push(lottie.loadAnimation({ container: $('a' + i), renderer: 'svg', loop: true, autoplay: true, animationData: d.lottie }));
+    } catch (e) { if ($('a' + i)) $('a' + i).textContent = 'could not load'; }
+  });
+}
+$('form').addEventListener('submit', e => { e.preventDefault(); search(); });
+['k', 'rewrite', 'tag'].forEach(id => $(id).addEventListener('change', search));
+</script>
+</body>
+</html>

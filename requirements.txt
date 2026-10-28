@@ -1,0 +1,11 @@
+# Marionette: Lottie/SVG dataset parsing pipeline (env lives in ~/envs/marionette, not on this drive)
+# python3 -m venv ~/envs/marionette && ~/envs/marionette/bin/pip install -r requirements.txt
+numpy>=2.0
+scipy>=1.13
+zstandard>=0.23
+orjson>=3.10          # 3-5x faster JSON than stdlib for the 100+ GB of Lottie text
+tqdm>=4.66
+pyyaml>=6.0
+matplotlib>=3.9       # report plots only
+pandas>=2.2
+pyarrow>=16.0         # parquet output of the extracted tables

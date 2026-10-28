@@ -1,0 +1,14 @@
+# macOS / exFAT metadata
+._*
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+
+# Large generated data and external inputs (kept on disk, not versioned)
+/data/
+/sources/
+
+# ghost directory entry on the exFAT drive (a file named like the cache dir); see README
+__pycache__
