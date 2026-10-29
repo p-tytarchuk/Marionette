@@ -48,7 +48,24 @@ for _p in (ROOT / "lottie", Path(__file__).resolve().parent / "lottie"):
         sys.path.insert(0, str(_p))
 sys.path[:0] = [str(d) for d in (ROOT / "scripts").glob("[a-z]*") if d.suffix == ""]
 from lottie_curves import sample_property  # noqa: E402
-from motion_sem_features import T_FIX, resample, to_timeline  # noqa: E402
+T_FIX = 128                                                    # fixed timeline length (was in the removed motion_sem_features.py)
+
+
+def resample(x, n):
+    T = len(x)
+    src = np.linspace(0, T - 1, n)
+    i0 = np.floor(src).astype(int)
+    i1 = np.minimum(i0 + 1, T - 1)
+    w = (src - i0).reshape((-1,) + (1,) * (x.ndim - 1))
+    return x[i0] * (1 - w) + x[i1] * w
+
+
+def to_timeline(x, T):
+    """x (T, ...) -> (128, ...): padded by holding the last frame, or resampled when longer. Returns (array, warp)."""
+    if T <= T_FIX:
+        return np.concatenate([x, np.repeat(x[-1:], T_FIX - T, 0)]) if T < T_FIX else x, 1.0
+    return resample(x, T_FIX), T / T_FIX
+
 
 MAX_FRAMES = 1024
 

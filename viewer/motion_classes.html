@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Marionette Motion Classes</title>
+<link rel="icon" href="data:,">
+<style>
+  :root { --bg:#14161a; --panel:#1b1e24; --line:#2a2e36; --text:#d8dce4; --dim:#8a92a0; --accent:#6ea8ff; --warn:#e8b04a; --good:#5fcf8a; --bad:#ef6b6b; }
+  * { box-sizing:border-box; }
+  html,body { margin:0; background:var(--bg); color:var(--text); font:13px/1.45 system-ui,-apple-system,sans-serif; }
+  a { color:var(--accent); }
+  .wrap { max-width:1500px; margin:0 auto; padding:16px 20px 36px; }
+  h1 { font-size:20px; margin:0 0 2px; } .sub { color:var(--dim); margin:0 0 14px; max-width:1000px; }
+  h2 { font-size:12px; text-transform:uppercase; letter-spacing:1.1px; color:var(--dim); margin:18px 0 6px; font-weight:600; }
+  .layout { display:grid; grid-template-columns:minmax(0,1fr) 420px; gap:20px; align-items:start; }
+  @media (max-width:1150px) { .layout { grid-template-columns:1fr; } }
+  table { border-collapse:collapse; width:100%; background:var(--panel); border:1px solid var(--line); border-radius:10px; overflow:hidden; }
+  th,td { padding:7px 10px; text-align:left; border-bottom:1px solid var(--line); vertical-align:middle; }
+  th { color:var(--dim); font-weight:600; font-size:11px; text-transform:uppercase; letter-spacing:.8px; } tr:last-child td { border-bottom:0; }
+  td.num, th.num { text-align:right; font-variant-numeric:tabular-nums; }
+  tbody tr.cls { cursor:pointer; } tbody tr.cls:hover { background:#20242b; } tbody tr.sel { background:#222833; box-shadow:inset 3px 0 0 var(--accent); }
+  .name { font-weight:600; } .desc { color:var(--dim); font-size:11px; font-weight:400; }
+  .bar { height:7px; background:var(--bg); border:1px solid var(--line); border-radius:4px; width:120px; overflow:hidden; display:inline-block; vertical-align:middle; margin-left:8px; } .bar i { display:block; height:100%; background:var(--good); }
+  .zero { color:var(--bad); } .low { color:var(--warn); }
+  .chip { display:inline-block; padding:0 7px; margin:1px 3px 1px 0; border-radius:999px; border:1px solid var(--line); font-size:11px; color:var(--text); } .chip b { color:var(--accent); font-weight:600; }
+  .heat td.c { text-align:center; font-variant-numeric:tabular-nums; min-width:62px; padding:6px 4px; } .heat th.m { text-align:center; padding:6px 2px; }
+  .note { color:var(--dim); font-size:12px; margin:8px 0; max-width:1000px; }
+  aside { position:sticky; top:10px; max-height:calc(100vh - 20px); overflow:auto; background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px 14px; }
+  aside h3 { margin:0 0 2px; font-size:16px; } aside h4 { margin:12px 0 4px; font-size:11px; text-transform:uppercase; letter-spacing:1px; color:var(--dim); }
+  .mrow { display:grid; grid-template-columns:96px 1fr 52px; gap:8px; align-items:center; padding:2px 0; cursor:pointer; } .mrow:hover .lbl { color:var(--accent); } .mrow.on .lbl { color:var(--accent); font-weight:600; }
+  .mrow .bar { width:100%; margin:0; } .mrow .bar i { background:var(--accent); } .mrow .v { text-align:right; font-variant-numeric:tabular-nums; color:var(--dim); }
+  .ex { margin:3px 0; padding:4px 8px; background:var(--bg); border:1px solid var(--line); border-radius:6px; font-size:12px; } .ex small { color:var(--dim); display:block; }
+  #msg { color:var(--warn); min-height:18px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Motion classes</h1>
+  <p class="sub">The motion data sorted into the four body classes of the skeleton spec (biped, quadruped, winged, limbless) plus <i>other</i>: how many clips each class has, how many can be used now, and which movements their captions describe. Click a class for its details.</p>
+  <div id="msg"></div>
+  <div class="layout">
+    <div>
+      <h2>3D clips of the export, by class</h2>
+      <table id="classes"><thead><tr><th>class</th><th class="num">clips</th><th>usable now</th><th class="num">hours</th><th>main movement</th><th>rig categories</th></tr></thead><tbody></tbody></table>
+      <h2>Movement modes mentioned in the captions (clips, share of the class in colour)</h2>
+      <table class="heat" id="heat"><thead></thead><tbody></tbody></table>
+      <h2>2D (Lottie) clips, tokenised, by the body plan Qwen found</h2>
+      <table class="heat" id="lheat"><thead></thead><tbody></tbody></table>
+      <p class="note">A clip counts for a mode when its motion caption mentions it (keyword rules, so a count is "mentions the mode", not a verified label); one clip can count for several modes. Usable means the clip's character was normalised and passed the
+        checks of the inventory; for winged, limbless and other that is almost always because the character was never normalised (the panel shows the reasons), so none of their clips can be played on a character yet. Marine bodies are counted as limbless. The Lottie side only knows 2-leg and 4-leg bodies (Qwen's label); it has no winged or limbless class yet.
+        Numbers come from <code>data/inventory/clips.csv</code> and <code>data/embeddings/lottie_feats_index.csv</code> (<code>scripts/motion/motion_coverage.py</code>).</p>
+    </div>
+    <aside id="detail"><div class="note">Click a class.</div></aside>
+  </div>
+</div>
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const NICE = { walk: 'walk', run: 'run', trot_gallop: 'trot / gallop', hop_jump: 'hop / jump', fly: 'fly / flap', swim: 'swim', slither_crawl: 'slither / crawl', wave_gesture: 'wave / gesture', dance: 'dance', idle: 'idle' };
+const DESC = { biped: 'two legs, arms', quadruped: 'four legs', winged: 'wings (flap, glide)', limbless: 'no limbs (slither, swim)', other: 'insectoid, rigid, uncertain' };
+const nf = n => n.toLocaleString('en-US');
+let D = null, cur = 'biped', curMode = null;
+
+function usable(c) { const p = c.n ? c.usable / c.n : 0; return `<span class="${c.usable === 0 ? 'zero' : p < 0.7 ? 'low' : ''}">${nf(c.usable)}</span><span class="bar"><i style="width:${(100 * p).toFixed(1)}%"></i></span> <span class="desc">${(100 * p).toFixed(0)}%</span>`; }
+function topChips(c) { return c.top.length ? c.top.map(m => `<span class="chip">${NICE[m]} <b>${nf(c.modes[m])}</b></span>`).join('') : '<span class="desc">none</span>'; }
+function heat(rows, n) {
+  return rows.map(r => `<tr class="${r.cls ? 'cls' + (r.id === cur ? ' sel' : '') : ''}" ${r.cls ? `data-id="${r.id}"` : ''}><td class="name">${r.id}</td><td class="num">${nf(r.n)}</td>` +
+    D.modes.map(m => { const k = r.modes[m] || 0, a = Math.min(0.85, Math.sqrt(k / Math.max(r.n, 1)) * 1.1); return `<td class="c" style="background:rgba(110,168,255,${k ? (0.06 + a * 0.5).toFixed(2) : 0})${k ? '' : ';color:var(--dim)'}">${k ? nf(k) : '·'}</td>`; }).join('') + '</tr>').join('');
+}
+function render() {
+  $('classes').tBodies[0].innerHTML = D.classes.map(c => `<tr class="cls${c.id === cur ? ' sel' : ''}" data-id="${c.id}"><td><span class="name">${c.id}</span><br><span class="desc">${DESC[c.id]}</span></td><td class="num">${nf(c.n)}</td><td>${usable(c)}</td><td class="num">${c.hours}</td><td>${topChips(c)}</td>` +
+    `<td>${Object.entries(c.categories).map(([k, v]) => `<span class="chip">${k} <b>${nf(v)}</b></span>`).join('')}</td></tr>`).join('');
+  const head = `<tr><th>class</th><th class="num">clips</th>${D.modes.map(m => `<th class="m">${NICE[m]}</th>`).join('')}</tr>`;
+  $('heat').tHead.innerHTML = head; $('heat').tBodies[0].innerHTML = heat(D.classes.map(c => ({ ...c, cls: true })), 0);
+  $('lheat').tHead.innerHTML = head.replace('class', 'body plan'); $('lheat').tBodies[0].innerHTML = heat(D.lottie.map(c => ({ ...c, cls: false })), 0);
+  detail();
+}
+function detail() {
+  const c = D.classes.find(x => x.id === cur), max = Math.max(1, ...Object.values(c.modes));
+  const modes = D.modes.filter(m => c.modes[m]).sort((a, b) => c.modes[b] - c.modes[a]);
+  const reasons = Object.entries(c.reasons).map(([k, v]) => `<div>${esc(k)} <span class="desc">· ${nf(v)} clips</span></div>`).join('') || '<span class="desc">none: every clip is usable</span>';
+  const ex = curMode && c.examples[curMode] ? c.examples[curMode].map(e => `<div class="ex">${esc(e.caption)}<small>${esc(e.clip)}</small></div>`).join('') : '';
+  $('detail').innerHTML = `<h3>${c.id}</h3><div class="desc">${DESC[c.id]}</div>
+    <div style="margin-top:8px">${nf(c.n)} clips · ${c.hours} h of motion · ${usable(c)} usable now</div>
+    <h4>Not usable because</h4>${reasons}
+    <h4>Movement modes (click one for example captions)</h4>
+    ${modes.map(m => `<div class="mrow${m === curMode ? ' on' : ''}" data-mode="${m}"><span class="lbl">${NICE[m]}</span><span class="bar"><i style="width:${(100 * c.modes[m] / max).toFixed(1)}%"></i></span><span class="v">${nf(c.modes[m])}</span></div>`).join('') || '<span class="desc">no caption names a movement mode</span>'}
+    ${curMode ? `<h4>Examples: ${NICE[curMode]}</h4>${ex || '<span class="desc">none</span>'}` : ''}`;
+}
+document.addEventListener('click', e => {
+  const tr = e.target.closest('tr[data-id]'); if (tr) { cur = tr.dataset.id; curMode = null; render(); return; }
+  const mr = e.target.closest('.mrow'); if (mr) { curMode = curMode === mr.dataset.mode ? null : mr.dataset.mode; detail(); }
+});
+(async () => {
+  try {
+    D = await (await fetch('/api/motion_classes')).json();
+    if (D.error) throw new Error(D.error);
+    render();
+  } catch (e) { $('msg').textContent = 'could not load /api/motion_classes: ' + e.message + ' (run: python3 viewer/serve.py)'; }
+})();
+</script>
+</body>
+</html>

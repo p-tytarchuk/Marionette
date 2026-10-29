@@ -1,0 +1,376 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Marionette pipeline: where we are</title>
+<link rel="icon" href="data:,">
+<style>
+  :root {
+    --bg:#14161a; --panel:#1b1e24; --line:#2a2e36; --text:#d8dce4; --dim:#8a92a0; --accent:#6ea8ff;
+    --done:#5fcf8a; --work:#e8b04a; --pilot:#6ea8ff; --todo:#ef6b6b; --idle:#8a92a0;
+    --done-bg:rgba(95,207,138,.10); --work-bg:rgba(232,176,74,.10); --pilot-bg:rgba(110,168,255,.10); --todo-bg:rgba(239,107,107,.07); --idle-bg:rgba(138,146,160,.05);
+    --code:#0f1115;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg:#f6f5f2; --panel:#ffffff; --line:#d9d7d0; --text:#1f1f1d; --dim:#5f5e5a; --accent:#1f5fcf;
+      --done:#1d7a45; --work:#9a6a05; --pilot:#1f5fcf; --todo:#c43b3b; --idle:#6b6a66;
+      --done-bg:rgba(29,122,69,.09); --work-bg:rgba(154,106,5,.09); --pilot-bg:rgba(31,95,207,.08); --todo-bg:rgba(196,59,59,.06); --idle-bg:rgba(107,106,102,.05);
+      --code:#efede7;
+    }
+  }
+  * { box-sizing:border-box; }
+  html,body { margin:0; background:var(--bg); color:var(--text); font:14px/1.5 system-ui,-apple-system,sans-serif; }
+  a { color:var(--accent); }
+  code { font:12.5px ui-monospace,SFMono-Regular,Menlo,monospace; background:var(--code); border:1px solid var(--line); border-radius:4px; padding:0 5px; }
+  .wrap { max-width:1320px; margin:0 auto; padding:28px 16px 56px; }
+  h1 { margin:0; font-size:28px; font-weight:650; }
+  h2 { font-size:12px; text-transform:uppercase; letter-spacing:1.2px; color:var(--dim); margin:34px 0 12px; font-weight:600; }
+  .sub { color:var(--dim); margin:4px 0 0; max-width:820px; }
+  .asof { display:inline-block; font-size:12px; color:var(--dim); border:1px solid var(--line); border-radius:999px; padding:2px 11px; margin-top:10px; }
+  .summary { display:grid; grid-template-columns:repeat(auto-fit, minmax(250px, 1fr)); gap:12px; margin-top:18px; }
+  .summary div { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:11px 14px; }
+  .summary b { display:block; font-size:12px; text-transform:uppercase; letter-spacing:.8px; margin-bottom:3px; }
+  .summary .g b { color:var(--done); } .summary .w b { color:var(--work); } .summary .r b { color:var(--todo); }
+  .scroll { overflow-x:auto; border:1px solid var(--line); border-radius:12px; background:var(--panel); }
+  svg#map { display:block; min-width:980px; width:100%; height:auto; }
+  svg text { font-family:system-ui,-apple-system,sans-serif; fill:var(--text); }
+  .col-head { font-size:11px; letter-spacing:1.3px; font-weight:700; fill:var(--dim); text-transform:uppercase; }
+  .row-title { font-size:14px; font-weight:700; } .row-sub { font-size:11px; fill:var(--dim); }
+  .row-band { fill:none; stroke:var(--line); stroke-dasharray:2 4; }
+  .cell { cursor:pointer; outline:none; }
+  .cell rect.box { stroke-width:1.6; transition:stroke-width .12s; }
+  .cell:hover rect.box, .cell:focus-visible rect.box, .cell.sel rect.box { stroke-width:3.2; }
+  .cell.sel rect.box { stroke-dasharray:none; }
+  .cell .t { font-size:13px; font-weight:650; } .cell .l { font-size:11px; fill:var(--dim); } .cell .s { font-size:10px; font-weight:700; letter-spacing:.9px; }
+  .st-done rect.box { fill:var(--done-bg); stroke:var(--done); } .st-done .s, .st-done .dot { fill:var(--done); }
+  .st-work rect.box { fill:var(--work-bg); stroke:var(--work); } .st-work .s, .st-work .dot { fill:var(--work); }
+  .st-pilot rect.box { fill:var(--pilot-bg); stroke:var(--pilot); } .st-pilot .s, .st-pilot .dot { fill:var(--pilot); }
+  .st-todo rect.box { fill:var(--todo-bg); stroke:var(--todo); stroke-dasharray:7 4; } .st-todo .s, .st-todo .dot { fill:var(--todo); }
+  .st-idle rect.box { fill:var(--idle-bg); stroke:var(--idle); stroke-dasharray:3 4; } .st-idle .s, .st-idle .dot { fill:var(--idle); }
+  .edge { fill:none; stroke:var(--dim); stroke-width:1.6; } .edge.dash { stroke-dasharray:5 4; } .edge.todo { stroke:var(--todo); stroke-dasharray:5 4; }
+  .edge-lab { font-size:10px; fill:var(--dim); }
+  .flag rect { fill:var(--accent); } .flag text { fill:#0c1220; font-size:9.5px; font-weight:800; letter-spacing:.8px; }
+  .flag.next rect { fill:var(--todo); } .flag.next text { fill:#fff; }
+  .legend { display:flex; flex-wrap:wrap; gap:8px 18px; margin:10px 2px 0; color:var(--dim); font-size:12px; align-items:center; }
+  .legend i { display:inline-block; width:22px; height:12px; border-radius:3px; border:2px solid; vertical-align:-2px; margin-right:6px; }
+  .legend .done { border-color:var(--done); background:var(--done-bg); } .legend .work { border-color:var(--work); background:var(--work-bg); }
+  .legend .pilot { border-color:var(--pilot); background:var(--pilot-bg); } .legend .todo { border-color:var(--todo); background:var(--todo-bg); border-style:dashed; }
+  .legend .idle { border-color:var(--idle); background:var(--idle-bg); border-style:dotted; }
+  #manual { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:18px 20px 20px; margin-top:16px; }
+  #manual h3 { margin:0 0 2px; font-size:20px; }
+  #manual .pill { display:inline-block; font-size:11px; font-weight:700; letter-spacing:.8px; border:1.5px solid; border-radius:999px; padding:1px 10px; margin-left:8px; vertical-align:3px; }
+  .p-done { color:var(--done); } .p-work { color:var(--work); } .p-pilot { color:var(--pilot); } .p-todo { color:var(--todo); } .p-idle { color:var(--idle); }
+  #manual .lead { color:var(--dim); margin:2px 0 14px; max-width:860px; }
+  .mgrid { display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:16px 28px; }
+  .mgrid h4 { margin:0 0 5px; font-size:11px; text-transform:uppercase; letter-spacing:1px; color:var(--dim); }
+  .mgrid ul { margin:0; padding-left:18px; } .mgrid li { margin:2px 0; }
+  .mgrid pre { margin:0; background:var(--code); border:1px solid var(--line); border-radius:8px; padding:8px 10px; overflow-x:auto; font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace; white-space:pre; }
+  table { border-collapse:collapse; width:100%; background:var(--panel); border:1px solid var(--line); border-radius:10px; overflow:hidden; font-size:13px; }
+  th, td { text-align:left; vertical-align:top; padding:8px 12px; border-bottom:1px solid var(--line); }
+  th { font-size:11px; text-transform:uppercase; letter-spacing:.9px; color:var(--dim); font-weight:600; }
+  tr:last-child td { border-bottom:0; }
+  ol.next { padding-left:22px; max-width:960px; } ol.next li { margin:6px 0; }
+  .twocol { display:grid; grid-template-columns:repeat(auto-fit, minmax(420px, 1fr)); gap:18px 32px; }
+  footer { margin-top:40px; color:var(--dim); font-size:12px; }
+  @media (max-width:600px) { h1 { font-size:23px; } .twocol { grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Marionette: where we are</h1>
+  <p class="sub">Text prompt in, animated creature out. Three branches are being built side by side: a <b>3D motion</b> generator, a way to get the <b>character</b> (shape and skeleton), and a <b>Lottie / 2D</b> branch. Each box below is one step; click it for its manual.</p>
+  <span class="asof">state of 2026-10-27 · written from README.md, docs/ and the 2026-10-27 test runs</span>
+
+  <div class="summary">
+    <div class="g"><b>Works</b>3D data is prepared (3,570 characters, 7,225 clips); a prompt becomes a motion clip on any of 2,792 characters in about a second.</div>
+    <div class="w"><b>Partly there</b>Flips are still rough; characters come from retrieval, not generation; Lottie has a trained search model (retrieval) but no generator.</div>
+    <div class="r"><b>Not built</b>Text-to-Lottie generator, a learned shape generator, the phone app (the models already export to ONNX, about 98 MB).</div>
+  </div>
+
+  <h2>Pipeline map</h2>
+  <div class="scroll"><svg id="map" role="group" aria-label="Pipeline map: three branches by five stages"></svg></div>
+  <div class="legend" id="legend"></div>
+
+  <div id="manual" aria-live="polite"></div>
+
+  <h2>The original plan against today</h2>
+  <p class="sub" style="margin-bottom:10px">From <code>notes/Text → Rigged, Animated Creature Pipeline Plan.md</code> (19 Oct 2026): four parts, two of them trained on your data.</p>
+  <div class="scroll" style="border:0"><table>
+    <tr><th>Plan part</th><th>In the plan</th><th>Now</th></tr>
+    <tr><td><b>1 Text encoder</b></td><td>Frozen, downloaded</td><td><span class="p-done"><b>Done.</b></span> CLIP ViT-B/32 text tower, every caption embedded. For the phone it is the biggest model (254 MB fp32, 63 MB weight-only int8) and its tokenizer is not ported.</td></tr>
+    <tr><td><b>2 Shape generator</b></td><td>Embedding + class → shape code that deforms a template mesh; learned joint regressor places the skeleton</td><td><span class="p-todo"><b>Not built.</b></span> Replaced by retrieval of an existing character (pilot). Anymate (pretrained) stands in for the joint regressor and skin weights (pilot, geometry only).</td></tr>
+    <tr><td><b>3 Motion generator</b></td><td>Embedding + class + shape code → joint rotations on the class template</td><td><span class="p-work"><b>Working, being tuned.</b></span> Built differently: a latent diffusion model makes a motion for a human proxy skeleton, then a rule-based retargeter plays it on the chosen body (no shape code is given to the model).</td></tr>
+    <tr><td><b>4 Assembly</b></td><td>Apply motion to the skinned mesh, export GLB</td><td><span class="p-done"><b>Done</b></span> for characters that already exist (GLB clips, viewer).</td></tr>
+    <tr><td><b>On-device</b></td><td>Galaxy S23 Ultra, 100–150 MB, under 2 s</td><td><span class="p-pilot"><b>Audit only.</b></span> Models export and match torch; about 2,300 lines of numpy/scipy glue have no phone version; nothing measured on a phone.</td></tr>
+    <tr><td><b>Added since</b></td><td>(not in the plan)</td><td>The Lottie / 2D branch (text → 2D animation), started 2026-10-26.</td></tr>
+  </table></div>
+
+  <h2>What to do next</h2>
+  <div class="twocol">
+    <div>
+      <p class="sub" style="margin-bottom:6px"><b>Decisions only you can make</b></p>
+      <ol class="next">
+        <li><b>The Lottie generator.</b> Option A: train a text-conditioned model on the sine-fit tracks of the 42,568 clean candidates. Option B: reuse the 3D generator and convert its motion with <code>motion_to_2d.py</code> + <code>bake_lottie.py</code>, which needs 2D rig data that does not exist yet (<code>data/side_view_animals/</code>).</li>
+        <li><b>Shape: retrieve or generate.</b> Keep retrieval (works now, limited to 3,570 existing meshes) or build the plan's shape generator.</li>
+        <li><b>Quadruped size policy</b> (0.9 m for all quadrupeds at the moment).</li>
+      </ol>
+    </div>
+    <div>
+      <p class="sub" style="margin-bottom:6px"><b>Open work, roughly in the order the README lists it</b></p>
+      <ol class="next" start="4">
+        <li>Flips: incomplete flips and deep-crouch endings remain; the retargeter adds spikes even to real flips.</li>
+        <li>Quadruped data: 430 usable clips, 30% are "walk in place".</li>
+        <li>Lottie model: train on all 69,585 tokenised clips (it samples 11,000), lower the 2D/3D domain gap.</li>
+        <li>Phone: port the IK, smoothing and retarget code; tokenizer; measure on a real device.</li>
+        <li>Evaluation: held-out sets are small; no perceptual metric, no user study, flips judged from stills.</li>
+        <li>Housekeeping: <code>text_frontend.py</code>'s demo command crashes in its "hybrid" column (an old bug, no rewriter is built); everything else was re-run after the folder move (see the README, Session 2026-10-27).</li>
+      </ol>
+    </div>
+  </div>
+
+  <footer>This page is one file (<code>docs/pipeline.html</code>), data and drawing are in its script. Numbers come from the README status sections, <code>docs/EMBED.md</code>, <code>RETARGET.md</code>, <code>MOBILE.md</code> and the scripts' own output; update the <code>CELLS</code> table in the script at the bottom of this file when something changes. Open it with <code>python viewer/serve.py</code> at <a href="http://127.0.0.1:8765/docs/pipeline.html">127.0.0.1:8765/docs/pipeline.html</a>, or directly as a file.</footer>
+</div>
+
+<script>
+const STATUS = {
+  done:  {label: 'DONE',        word: 'Done',        note: 'built and checked'},
+  work:  {label: 'WORKING',     word: 'Working',     note: 'runs, but incomplete or still being tuned'},
+  pilot: {label: 'PILOT',       word: 'Pilot',       note: 'tried on a small sample or measured only on this Mac'},
+  todo:  {label: 'NOT BUILT',   word: 'Not built',   note: 'planned, no code yet'},
+  idle:  {label: 'NOT STARTED', word: 'Not started', note: 'nothing done'}
+};
+const COLS = ['1  Data', '2  Understand', '3  Generate (removed)', '4  Assemble / output', '5  Phone'];
+const ROWS = [
+  {title: 'A  3D motion',      sub: 'prompt → clip on a character'},
+  {title: 'B  Character',      sub: 'shape and skeleton for a prompt'},
+  {title: 'C  Lottie / 2D',    sub: 'prompt → 2D animation'}
+];
+
+/* One entry per box. Edit here when the project changes. */
+const CELLS = [
+ {id:'a1', r:0, c:0, st:'done', title:'Data preparation', lines:['12,672 clips → 7,225 GLB','3,570 normalized characters','split 3,213 train / 357 val'],
+  lead:'The UniML3D export turned into one consistent dataset: every character in the same units and axes, every clip as a GLB on its own skeleton.',
+  scripts:['dataset/inventory.py','dataset/filter_dedupe.py','dataset/normalize.py','dataset/convert_clips.py','dataset/make_splits.py'],
+  run:'python scripts/dataset/inventory.py       # clips + captions -> data/inventory/\npython scripts/dataset/filter_dedupe.py   # 6,700 meshes -> 3,688 kept\npython scripts/dataset/normalize.py       # metres, Y up, +Z forward, feet on y = 0\npython scripts/dataset/convert_clips.py   # clips -> GLB on the characters\npython scripts/dataset/make_splits.py --write',
+  facts:['Inventory read all 12,672 clip files: 30 fps, no NaN, 7,286 usable.','3,688 meshes kept, 3,570 characters normalized (3,567 with a hip pair face +Z within 8°).','7,225 clips converted, worst joint error 4e-6 body heights; 61 skipped.','Character-level split 3,213 / 357; 2,792 characters can be retarget targets (2,745 biped, 47 quadruped).'],
+  open:['Quadruped data: 430 usable clips (target about 500); 30% are walks or runs in place.','Quadruped size is a placeholder (0.9 m for all).','Missing from the requirements sheet: shape captions, loop flags reviewed, joint maps for Objaverse, one rest pose per class.'],
+  views:[['Character browser','../viewer/index.html']], docs:[['DATASET.md','DATASET.md']]},
+
+ {id:'a2', r:0, c:1, st:'done', title:'Text–motion embeddings', lines:['CLIP text · role features','autoencoder (z, 256 numbers)','semantic model R@5 18.5%'],
+  lead:'Two motion models trained towards the frozen CLIP embedding of the captions. The semantic model works for any body; the role model has a latent that a decoder can turn back into motion.',
+  scripts:['text/embed.py','motion/motion_features.py','motion/motion_ae.py','motion/motion_sem_features.py','motion/motion_sem.py','dataset/template_clips.py'],
+  run:'python scripts/text/embed.py --query "runs"\npython scripts/motion/motion_sem.py --query "walks" "runs"\npython scripts/motion/motion_ae.py --query "a backflip" --cls quadruped',
+  facts:['Captions: 35,404 (17,384 distinct), CLIP ViT-B/32 text tower, mean-centred.','Role model: 6,055 clips (biped, quadruped) → latent z (256) + semantic part (512).','Semantic model: 12,703 clips, any rig (biped, quadruped, insect, bird, fish, snake); held-out text→motion R@5 18.5% (3D only).','Re-trained for 1 epoch on 2026-10-27 to confirm the scripts still run after the folder move; the saved models were not changed.'],
+  open:['Embed the retargeted <code>rt__</code> clips too.','More non-biped data (Truebones ZOO is a paid pack; 65 free template clips are in).'],
+  views:[], docs:[['EMBED.md','EMBED.md']]},
+
+ {id:'a3', r:0, c:2, st:'idle', title:'Prompt → motion (removed)', lines:['generator removed 2026-10-28','code kept in archive/','training scripts stay'],
+  lead:'Removed on 2026-10-28 (code in archive/motion_generate_2026-10-28/). The text front end, the diffusion and speed experiments in scripts/motion stay; the sampler, decoder-to-clip and gate do not.',
+  scripts:['text/rewrite_prompt.py','text/text_frontend.py','motion/diffusion_test.py','motion/speed_sampler.py','motion/walk_check.py','motion/gait_check.py','text/paraphrase.py','text/wording_eval.py'],
+  run:'# no generator any more',
+  facts:['Rewriting prompts at inference lifts reworded-prompt R@5 by 4–9 points; canonical prompts unchanged.','Smoothing the decoded limbs halves backflip spikes (18.7 → 8.6 per clip, 7 seeds); the latent-norm cap brought them to about 2.5.','Candidate gate (<code>--tries 4</code>) and norm cap (<code>--znorm 0.9</code>) are on in plain mode.','2026-10-27: a run prompt generated in 1.2 s, gate passed on the first try; diffusion training ran for 50 steps after the folder move.'],
+  open:['Incomplete flips and clips ending in a deep crouch remain.','Runs pile up at the duration-band floor (25% at guidance 2).','Sampler mode (walk / run / plain) is chosen by a regex on the prompt.','No perceptual metric or user study.'],
+  views:[['Filmstrips','../viewer/strip.html']], docs:[['EMBED.md','EMBED.md']]},
+
+ {id:'a4', r:0, c:3, st:'work', title:'Clip on any character', lines:['decoder → smoothing → IK','rule-based retargeter onto','2,792 targets · flips weak'],
+  lead:'A rule-based retargeter (no learning) plays a source clip on the chosen biped or quadruped and writes a GLB clip next to the character. (The latent decoder that fed it was removed on 2026-10-28.)',
+  scripts:['rigging/retarget.py','tools/clean_generated.py'],
+  run:'python scripts/rigging/retarget.py --list-targets\npython scripts/rigging/retarget.py --source-clip Backflip --target objaverse_<id>\npython scripts/tools/clean_generated.py     # dry run: lists generated clips',
+  facts:['Targets: 2,745 bipeds (all 50 Mixamo) and 47 quadrupeds; output <code>data/characters/&lt;target&gt;/anims/rt__*.glb</code> plus metrics in <code>anims.json</code>.','Self-test passes after the folder move (identity retarget error below 1e-7 body heights).','Generated clips pile up under <code>data/decoded/gen_*.glb</code>; <code>clean_generated.py</code> removes them (it now skips a damaged <code>anims.json</code> instead of crashing).'],
+  open:['Backflip: 16–52 reach-fail frames and 5–13 rotation spikes on some targets.','Long-bodied quadrupeds need a large root lift; there is no physics check.','Shoulder, toe and tail motion is rigid; not compared with a learned retargeter.'],
+  views:[], docs:[['RETARGET.md','RETARGET.md']]},
+
+ {id:'a5', r:0, c:4, st:'idle', title:'Phone (removed)', lines:['generator removed 2026-10-28','ONNX export audit kept in','docs/MOBILE.md'],
+  lead:'Removed on 2026-10-28 (code in archive/motion_generate_2026-10-28/).',
+  scripts:[],
+  run:'# no generator any more',
+  facts:['Denoiser 28.6 MB and decoder 6.3 MB as int8; CLIP 254 MB fp32, 63 MB weight-only int8; total about 98 MB.','Exports match torch to about 1e-6; re-run on 2026-10-27 from the new folder (error 2–3e-6).','Mac CPU times: CLIP 13.6 ms per prompt, denoiser 0.5 ms per call (int8).'],
+  open:['CLIP BPE tokenizer has to be ported.','About 2,300 lines of numpy/scipy (IK proxy, smoothing, retargeter) have no phone version.','Nothing is measured on a phone; the target is under 2 s and 100–150 MB.'],
+  views:[], docs:[['MOBILE.md','MOBILE.md']]},
+
+ {id:'b1', r:1, c:0, st:'work', title:'Shape data', lines:['3,570 meshes + class labels','meta.json, split done','shape captions missing'],
+  lead:'The same characters as in the 3D branch, seen as shapes: a mesh, a class (biped / quadruped) and a few facts per character.',
+  scripts:['dataset/make_splits.py (writes meta.json per character)'],
+  run:'python scripts/dataset/make_splits.py          # dry run\npython scripts/dataset/make_splits.py --write',
+  facts:['Every character has <code>meta.json</code> (class, source, skeleton id, retarget flag; its <code>shape_captions</code> list is still empty) and a place in the train / val split.','Dry run re-checked on 2026-10-27 after the folder move.'],
+  open:['2–3 shape captions per character are still missing (a VLM on static renders would probably do; untested).','No template deformation, which the plan assumed for a shape generator.'],
+  views:[['Character browser','../viewer/index.html'],['Rest-pose portraits','../viewer/portrait.html']], docs:[['DATASET.md','DATASET.md']]},
+
+ {id:'b2', r:1, c:1, st:'pilot', title:'Shape understanding', lines:['CLIP image embeddings of','character portraits (pilot)','VLM shape captions: untested'],
+  lead:'To find a character from words, each character is rendered (front, side, 3/4) and embedded with CLIP image features next to the text.',
+  scripts:['generate/shape_retrieval.py (sample, render, clip, caption, eval, query)','captioning/qwen_caption.py','captioning/qwen_mesh_pilot.py','captioning/qwen_check_pilot.py'],
+  run:'python scripts/generate/shape_retrieval.py query "a small four-legged animal"',
+  facts:['The Qwen3-VL captioning pilots were about <i>motion</i> and were negative: with mesh renders the 2B model reaches R@5 30% (humans) and 17% (quadrupeds); the dataset captions stay.','Shape captions from a static render are an easier task and have not been tried.'],
+  open:['Evaluate prompt → character beyond the pilot sample.'],
+  views:[['Rest-pose portraits','../viewer/portrait.html']], docs:[['EMBED.md (Qwen3-VL section)','EMBED.md']]},
+
+ {id:'b3', r:1, c:2, st:'idle', title:'Prompt → character (removed)', lines:['text_to_character removed','2026-10-28','shape_retrieval.py stays'],
+  lead:'Removed on 2026-10-28 (code in archive/motion_generate_2026-10-28/). Only shape_retrieval.py (CLIP embedding of character portraits) stays.',
+  scripts:['generate/shape_retrieval.py','text/text_frontend.py'],
+  run:'python scripts/generate/shape_retrieval.py query "a small four-legged animal"',
+  facts:['The generator page can choose the character from the shape words of the prompt (option "auto character").','The plan\'s part 2 (embedding → shape code → template deformation) does not exist.'],
+  open:['Decide: keep retrieval, or train a shape generator.','text_to_character re-run on 2026-10-27 (split, shape-only, full).'],
+  views:[], docs:[]},
+
+ {id:'b4', r:1, c:3, st:'pilot', title:'Rig for a new body', lines:['Anymate: joints + skin','roles: biped 94%, quad 39/47','32/32 retargets worked'],
+  lead:'Auto-rigging pilot: the pretrained Anymate networks predict joints, bones and skin weights from a mesh; the joints (which have no names) are mapped to the retargeter\'s roles by geometry, so the same motion can drive a body that has no rig of its own.',
+  scripts:['rigging/anymate_predict.py','rigging/anymate_roles.py','rigging/anymate_rig.py'],
+  run:'python scripts/rigging/anymate_predict.py test --n 2\npython scripts/rigging/anymate_roles.py eval\npython scripts/rigging/anymate_rig.py run --n-biped 1 --n-quad 1 --clips Walking',
+  facts:['221 characters predicted on the Mac CPU (2–5 s each).','Roles found for 94% of held-out bipeds; standing quadrupeds 39 of 47 after mesh-based foot detection.','32 of 32 retargets (Walking, Jump_3) on 16 held-out characters, metrics close to the characters\' own rigs.','All three scripts re-run on 2026-10-27; the joint predictor is random from run to run (42, 42, 45 joints for one character).'],
+  open:['Quadruped limb choice is rough; head is the weakest role.','No textures on the rigs; leakage against Anymate\'s training set not checked; judged from stills, not video.','AnyTop (motion for any skeleton) was downloaded but its checkpoints were not run.'],
+  views:[], docs:[]},
+
+ {id:'b5', r:1, c:4, st:'idle', title:'Phone', lines:['not started'],
+  lead:'Nothing for characters on the phone yet: no mesh deformation, retrieval index or rigging on device.', scripts:[], run:'', facts:[], open:['Depends on the decision for box B3 (retrieval or generator).'], views:[], docs:[]},
+
+ {id:'c1', r:2, c:0, st:'done', title:'Corpus, labels, parse', lines:['672,223 animations','Qwen: 91,724 relevant','42,568 clean candidates'],
+  lead:'LottieAnimation-660K, labelled by two Qwen3-VL stages (2B filter, 8B decision: is it a whole living 2- or 4-legged character?) and parsed into per-layer motion tracks with sine fits.',
+  scripts:['lottie2d/vlm_tables.py (server)','lottie2d/parse_lottie.py (server)','lottie2d/analyze_lottie.py','lottie2d/probe_lottie_rigs.py'],
+  run:'python scripts/lottie2d/analyze_lottie.py vlm      # what the Qwen labelling found\npython scripts/lottie2d/analyze_lottie.py motion   # what the motion parse found + candidates.csv',
+  facts:['Stage 1 looked at 142,412 rows and kept 121,286; stage 2 re-ran those: 91,724 relevant, almost all two-legged (four-legged are rare).','Motion parse 68/68 shards: 17.4% of rows use expressions, 49.8% have a fitted rotation track.','Rig-likeness probe: only about 23% have a parent chain of 3 or more with 3 or more rotations; 70% have generic layer names, so roles cannot come from names.','Both stages ran on the GPU server; the results were copied to <code>data/vlm</code> and <code>data/lottie</code>.'],
+  open:['Content is dominated by stock-illustration themes; many animations are templates of the same character (no dedupe yet).','<code>data/vlm/svg</code> is empty (LottieSVG-10M has no labels).'],
+  views:[['Qwen label table','../viewer/vlm_table.html'],['Raw dataset browser','../viewer/lottie_raw.html']], docs:[['LOTTIE_PARSE.md','LOTTIE_PARSE.md']]},
+
+ {id:'c2', r:2, c:1, st:'work', title:'Tokens + joint model', lines:['69,585 clips tokenised','joint 3D+2D model trained','Lottie→3D P@5 20.3%'],
+  lead:'Each Lottie layer (and animated shape group) becomes a joint token in the same format as the 3D clips, so one semantic model can read both. It is trained on 3D clips plus a sample of Lottie clips and tested across domains with action words.',
+  scripts:['lottie2d/lottie_tokens.py','lottie2d/lottie_actions.py','motion/motion_sem_joint.py','lottie2d/lottie_filmstrips.py'],
+  run:'python scripts/lottie2d/lottie_tokens.py selftest\npython scripts/motion/motion_sem_joint.py summary --tags pilot full_s1 full_s2 mixed mixed_s1 mixed_s2 --group full=pilot,full_s1,full_s2 mixed=mixed,mixed_s1,mixed_s2',
+  facts:['69,585 of 91,724 relevant animations tokenised (76%), 1,182,140 joint tokens, median 13 joints per clip.','7 model runs on the server, 3 seeds per version: Lottie→3D precision@5 17.8% (full captions) and 20.3% (mixed full + action captions); 3D→Lottie 20.4% and 24.6%; mixed won every paired seed. (3D-only baseline was 8.4–9.0% on the earlier 44-shard run.)','The 2D and 3D skeletons are still easy to tell apart (classifier AUC 0.93–0.94 on the embeddings).','The training scripts were re-run for a few steps on 2026-10-27 after the folder move.'],
+  open:['Training still samples 11,000 Lottie clips, not all 69,585.','Gestures (wave, point) stay weak when searching 3D from a Lottie query; action captions have flaws (object motion counted as the character\'s).','Ideas: a domain-adversarial term, or role-map only the rig-like Lottie subset.'],
+  flag:'LATEST WORK', views:[['Joints and tokens over an animation','../viewer/lottie_tokens.html']], docs:[['LOTTIE_PARSE.md','LOTTIE_PARSE.md']]},
+
+ {id:'c3', r:2, c:2, st:'todo', title:'Lottie generator', lines:['text → new 2D animation','A: fit tracks, train on 2D','B: 3D motion → 2D rig'],
+  lead:'The missing piece of this branch: today a text query only <i>finds</i> existing animations. Two ways to make new ones, to be decided.',
+  scripts:[],
+  run:'',
+  facts:['<b>Option A:</b> use the sine-fit rotation tracks of the 42,568 clean candidates as targets for a text-conditioned model that drives a 2D rig. Gives gestures and head / face motion (what Lottie contains), not walking.','<b>Option B:</b> generate 3D motion with the existing generator, convert it with <code>motion_to_2d.py</code> and bake it into a Lottie file with <code>bake_lottie.py</code>. Gives walking and running, but needs a 2D rig for the animal.','Findings so far suggest a part-based merge: arms and head from the 2D data, locomotion from 3D.'],
+  open:['Choose A, B or both.','B first needs the 2D rig data (box C4).'],
+  flag:'NEXT DECISION', next:true, views:[], docs:[]},
+
+ {id:'c4', r:2, c:3, st:'work', title:'2D output', lines:['search page: retrieval only','3D→2D needs 2D rig data','data/side_view_animals: none'],
+  lead:'What can be shown today: a search page that plays the nearest Lottie animations (and nearest 3D clips) for a prompt. The 3D → 2D hand-over exists as code, but has no data to run on.',
+  scripts:['lottie2d/lottie_search.py','lottie2d/motion_to_2d.py','lottie2d/bake_lottie.py','lottie2d/rig_mesh.py','lottie2d/svg_to_mesh.py','lottie2d/build_mesh.py','lottie2d/filter_side_view_animals.py'],
+  run:'python scripts/lottie2d/lottie_search.py build --tag mixed --captions mixed\npython scripts/lottie2d/lottie_search.py query "a person waves hello" --tag mixed',
+  facts:['Search index: 69,585 Lottie clips + 12,703 3D clips (model <code>mixed</code>); the page is served by <code>viewer/serve.py</code> and checked on 2026-10-27.','The project no longer imports from Loomie: <code>build_mesh.py</code> was copied in, 2D rig data will go to <code>data/side_view_animals/</code> (mesh/, rig_spec/, rig/), which does not exist yet.','<code>rig_mesh.py</code> was damaged (cut at byte 12,288); it was rebuilt and tested on a synthetic rig and on real bear artwork with a hand-placed skeleton (viewer deformation matches the Python one to 1e-14). <code>triangle</code> is installed in the Mario env.'],
+  open:['Make the 2D rig data: filter side-view animals from LottieSVG-small, <code>svg_to_mesh.py</code>, then a hand-placed rig spec for <code>rig_mesh.py</code>.','The chain filter_side_view_animals → svg_to_mesh → rig_mesh → motion_to_2d → bake_lottie ran on 2026-10-27 on a real bear artwork in a scratch folder (hand-placed skeleton); the baked Lottie plays in Chrome.'],
+  views:[['Lottie search','../viewer/lottie_search.html']], docs:[]},
+
+ {id:'c5', r:2, c:4, st:'idle', title:'Phone', lines:['not started'],
+  lead:'Nothing for the Lottie branch on the phone yet.', scripts:[], run:'', facts:[], open:[], views:[], docs:[]}
+];
+
+/* edges: [from, to, kind] (kind: '' solid, 'dash' shares/reuses, 'todo' missing) */
+const EDGES = [
+  ['a1','a2',''],['a2','a3',''],['a3','a4',''],['a4','a5',''],
+  ['b1','b2',''],['b2','b3',''],['b3','b4',''],['b4','b5','todo'],
+  ['c1','c2',''],['c2','c3','todo'],['c3','c4','todo'],['c4','c5','todo']
+];
+const LINKS = [  /* vertical hand-offs between rows: [from, to, label] */
+  ['a1','b1','same characters'],['a4','b4','retargeter reused'],['a2','c2','same semantic model']
+];
+
+const W = 200, H = 124, GX = 30, GY = 46, X0 = 168, Y0 = 84;
+const svgNS = 'http://www.w3.org/2000/svg';
+const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+const pos = c => ({x: X0 + c.c * (W + GX), y: Y0 + c.r * (H + GY)});
+const byId = Object.fromEntries(CELLS.map(c => [c.id, c]));
+
+function drawMap() {
+  const svg = document.getElementById('map');
+  const totalW = X0 + 5 * W + 4 * GX + 14, totalH = Y0 + 3 * H + 2 * GY + 18;
+  svg.setAttribute('viewBox', `0 0 ${totalW} ${totalH}`);
+  let s = `<defs><marker id="ah" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="var(--dim)"/></marker>
+    <marker id="ahr" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="var(--todo)"/></marker></defs>`;
+  COLS.forEach((t, i) => { s += `<text class="col-head" x="${X0 + i * (W + GX)}" y="40">${esc(t)}</text>`; });
+  s += `<text class="col-head" x="14" y="40">Branch</text>`;
+  ROWS.forEach((r, i) => {
+    const y = Y0 + i * (H + GY);
+    s += `<rect class="row-band" x="6" y="${y - 10}" width="${totalW - 12}" height="${H + 20}" rx="10"/>`;
+    s += `<text class="row-title" x="14" y="${y + 36}">${esc(r.title)}</text>`;
+    r.sub.split(' ').reduce((a, w) => { const l = a[a.length - 1]; if ((l + ' ' + w).length > 17) a.push(w); else a[a.length - 1] = (l ? l + ' ' : '') + w; return a; }, ['']).forEach((ln, k) => {
+      s += `<text class="row-sub" x="14" y="${y + 56 + k * 14}">${esc(ln)}</text>`; });
+  });
+  EDGES.forEach(([a, b, k]) => {
+    const A = pos(byId[a]), B = pos(byId[b]), y = A.y + H / 2;
+    s += `<path class="edge ${k}" d="M${A.x + W + 2} ${y}H${B.x - 3}" marker-end="url(#${k === 'todo' ? 'ahr' : 'ah'})"/>`;
+  });
+  LINKS.forEach(([a, b, lab]) => {
+    const A = pos(byId[a]), B = pos(byId[b]), x = A.x + W / 2 + (a === 'a2' ? 0 : 0);
+    const y1 = A.y + H + 2, y2 = B.y - 3;
+    if (a === 'a2') { /* a2 -> c2 crosses row B: route through the gap to the left of column 2 */
+      const gx = A.x - GX / 2;
+      s += `<path class="edge dash" d="M${A.x + 16} ${A.y + H + 2}V${A.y + H + GY / 2}H${gx}V${B.y + H / 2}H${B.x - 3}" marker-end="url(#ah)"/><text class="edge-lab" x="${gx - 3}" y="${(A.y + B.y) / 2 + H / 2 + 18}" text-anchor="end" transform="rotate(-90 ${gx - 3} ${(A.y + B.y) / 2 + H / 2 + 18})">${esc(lab)}</text>`;
+    } else {
+      s += `<path class="edge dash" d="M${x} ${y1}V${y2}" marker-end="url(#ah)"/><text class="edge-lab" x="${x + 8}" y="${(y1 + y2) / 2 + 3}">${esc(lab)}</text>`;
+    }
+  });
+  CELLS.forEach(c => {
+    const p = pos(c), st = STATUS[c.st];
+    s += `<g class="cell st-${c.st}" data-id="${c.id}" tabindex="0" role="button" aria-label="${esc(c.title)}: ${st.word}. Open its manual.">
+      <rect class="box" x="${p.x}" y="${p.y}" width="${W}" height="${H}" rx="10"/>
+      <text class="t" x="${p.x + 12}" y="${p.y + 25}">${esc(c.title)}</text>`;
+    c.lines.forEach((ln, i) => { s += `<text class="l" x="${p.x + 12}" y="${p.y + 48 + i * 17}">${esc(ln)}</text>`; });
+    s += `<circle class="dot" cx="${p.x + 17}" cy="${p.y + H - 15}" r="4.5"/><text class="s" x="${p.x + 28}" y="${p.y + H - 11}">${st.label}</text>`;
+    if (c.flag) {
+      const w = c.flag.length * 6.6 + 14;
+      s += `<g class="flag ${c.next ? 'next' : ''}"><rect x="${p.x + W - w - 8}" y="${p.y - 9}" width="${w}" height="17" rx="8.5"/><text x="${p.x + W - w / 2 - 8}" y="${p.y + 3}" text-anchor="middle">${esc(c.flag)}</text></g>`;
+    }
+    s += `</g>`;
+  });
+  svg.innerHTML = s;
+  svg.querySelectorAll('.cell').forEach(g => {
+    g.addEventListener('click', () => select(g.dataset.id));
+    g.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); select(g.dataset.id); } });
+  });
+}
+
+function drawLegend() {
+  document.getElementById('legend').innerHTML = Object.entries(STATUS).map(([k, v]) =>
+    `<span><i class="${k}"></i><b>${v.word}</b>: ${v.note}</span>`).join('') +
+    `<span>Dashed arrows: a step reused by another branch · red arrows: the connection is missing</span>`;
+}
+
+function list(items, empty) { return items.length ? `<ul>${items.map(i => `<li>${i}</li>`).join('')}</ul>` : `<span style="color:var(--dim)">${empty}</span>`; }
+
+function intro() {
+  document.getElementById('manual').innerHTML = `
+    <h3>How to read this page</h3>
+    <p class="lead">The map has three rows (the branches of the project) and five columns (the stages every branch goes through). Click or tab to a box to open its manual here.</p>
+    <div class="mgrid">
+      <div><h4>Colours</h4>${list(Object.values(STATUS).map(v => `<b>${v.word}</b>: ${v.note}`), '')}</div>
+      <div><h4>Each manual lists</h4>${list(['what the step does','scripts that belong to it (in <code>scripts/&lt;folder&gt;/</code>)','a command to try it, run from the project root','measured facts with their numbers','what is still open','pages in the viewer and the docs to read'], '')}</div>
+      <div><h4>Try it</h4><pre>conda activate Mario
+python viewer/serve.py     # opens the menu
+# this page: http://127.0.0.1:8765/docs/pipeline.html</pre></div>
+      <div><h4>Flags</h4>${list(['<b>LATEST WORK</b>: what was rebuilt most recently (all 68 label shards, 2026-10-27)','<b>NEXT DECISION</b>: the step that needs a choice before anything can be built'], '')}</div>
+    </div>`;
+}
+
+function select(id) {
+  const c = byId[id], st = STATUS[c.st], m = document.getElementById('manual');
+  document.querySelectorAll('.cell').forEach(g => g.classList.toggle('sel', g.dataset.id === id));
+  history.replaceState(null, '', '#' + id);
+  const r = ROWS[c.r].title.replace(/^\w\s+/, ''), col = COLS[c.c].replace(/^\d\s+/, '');
+  m.innerHTML = `
+    <h3>${esc(c.title)}<span class="pill p-${c.st}">${st.label}</span></h3>
+    <div style="color:var(--dim);font-size:12px;margin-bottom:6px">${esc(r)} · ${esc(col)}</div>
+    <p class="lead">${c.lead}</p>
+    <div class="mgrid">
+      <div><h4>Facts</h4>${list(c.facts, 'nothing to report yet')}</div>
+      <div><h4>Still open</h4>${list(c.open, 'nothing recorded')}</div>
+      <div><h4>Scripts</h4>${list(c.scripts.map(x => `<code>${esc(x)}</code>`), 'no code yet')}</div>
+      <div><h4>Try it (project root)</h4>${c.run ? `<pre>${esc(c.run)}</pre>` : `<span style="color:var(--dim)">no command</span>`}</div>
+      <div><h4>See it</h4>${list([...c.views.map(v => `viewer: <a href="${v[1]}">${esc(v[0])}</a> (needs <code>viewer/serve.py</code>)`), ...c.docs.map(d => `doc: <a href="${d[1]}">${esc(d[0])}</a>`)], 'no page for this step')}</div>
+    </div>`;
+  m.scrollIntoView({block: 'nearest', behavior: 'smooth'});
+}
+
+drawMap(); drawLegend(); intro();
+function fromHash() { const h = location.hash.slice(1); if (byId[h]) select(h); }
+addEventListener('hashchange', fromHash);
+fromHash();
+</script>
+</body>
+</html>

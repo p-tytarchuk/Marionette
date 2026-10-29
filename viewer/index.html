@@ -61,7 +61,7 @@
     <div id="filters">
       <input type="text" id="q" placeholder="Search id…" autocomplete="off">
       <div class="row">
-        <select id="fcls"><option value="">all classes</option><option>biped</option><option>quadruped</option></select>
+        <select id="fcls"><option value="">all classes</option><option>biped</option><option>quadruped</option><option>winged</option><option>limbless</option><option>other</option></select>
         <select id="fsrc"><option value="">all sources</option><option>mixamo</option><option>objaverse</option></select>
       </div>
       <div class="row"><label><input type="checkbox" id="fflag"> flagged</label><label><input type="checkbox" id="fclip"> has clips</label><span id="count"></span></div>
@@ -127,7 +127,8 @@ let items = [], shown = [], cur = -1, model = null, skel = null, wire = false, s
 let clips = [], shownClips = [], rootScale = 1, mixer = null, action = null, curClip = null, rootBone = null;
 const lastRoot = new THREE.Vector3(), tmp = new THREE.Vector3();
 const loader = new GLTFLoader(), clipCache = new Map(), clock = new THREE.Clock();
-let token = 0, clipToken = 0, mixamoIndex = null;
+let token = 0, clipToken = 0, mixamoIndex = null, orig = null;   // orig: an original animation of a never-normalised character, drawn as a moving skeleton
+const CLS_SHORT = { biped: 'bi', quadruped: 'quad', winged: 'wing', limbless: 'limb', other: 'oth' };
 
 function dispose(o) {
   o.traverse(c => { c.geometry?.dispose(); const ms = [].concat(c.material || []);
@@ -163,6 +164,7 @@ async function select(i, keepView = false) {
     skel.renderOrder = 10; scene.add(skel);
     applyToggles();
     const box = new THREE.Box3().setFromObject(model);
+    if (it.raw) { const sz = box.getSize(new THREE.Vector3()); it.height = sz.y; it.extent = [sz.x, sz.y, sz.z]; }   // never normalised: original size and orientation
     if (!keepView) frame(box);
     $('msg').style.display = 'none';
   } catch (e) { $('msg').textContent = 'failed to load: ' + e.message; }
@@ -180,17 +182,18 @@ function applyToggles() {
 
 function info(it) {
   const f = n => (+n).toFixed(2);
+  const raw = !!it.raw;
   $('info').innerHTML = `<h3>${it.key}</h3><table>
     <tr><td>class</td><td>${it.cls} <span style="color:var(--dim)">(${it.category})</span></td></tr>
-    <tr><td>height</td><td>${f(it.height)} m</td></tr>
-    <tr><td>extent x/y/z</td><td>${it.extent.map(f).join(' / ')} m</td></tr>
-    <tr><td>scale applied</td><td>×${it.scale.toFixed(4)} (${it.scale_mode})</td></tr>
-    <tr><td>yaw fixed</td><td>${f(it.yaw)}°</td></tr>
+    <tr><td>height</td><td>${it.height == null ? '—' : f(it.height) + (raw ? ' (file units)' : ' m')}</td></tr>
+    <tr><td>extent x/y/z</td><td>${it.extent ? it.extent.map(f).join(' / ') + (raw ? ' (file units)' : ' m') : '—'}</td></tr>
+    <tr><td>scale applied</td><td>${raw ? 'none: not normalised, original size' : `×${it.scale.toFixed(4)} (${it.scale_mode})`}</td></tr>
+    <tr><td>yaw fixed</td><td>${raw ? 'none: original orientation' : f(it.yaw) + '°'}</td></tr>
     <tr><td>triangles</td><td>${it.tris.toLocaleString()}</td></tr>
     <tr><td>joints</td><td>${it.joints}</td></tr>
     <tr><td>clips</td><td>${it.clips}${it.source === 'mixamo' ? ' (shared)' : ''}</td></tr>
     <tr><td>file</td><td>${it.mb} MB</td></tr>
-    <tr><td>flags</td><td>${it.flags.length ? '<span class="flag">' + it.flags.join(', ') + '</span>' : '—'}</td></tr></table>`;
+    <tr><td>flags</td><td>${it.flags.length ? '<span class="flag">' + it.flags.join(', ') + '</span>' : '—'}</td></tr></table>` + (it.clipErr ? `<div class="flag" style="margin-top:6px">${it.clipErr}</div>` : '');
 }
 
 function refilter() {
@@ -199,7 +202,7 @@ function refilter() {
   shown = items.filter(it => (!q || it.key.toLowerCase().includes(q)) && (!c || it.cls === c) && (!s || it.source === s) && (!fl || it.flags.length) && (!fc || it.clips));
   $('count').textContent = `${shown.length} / ${items.length}`;
   $('list').innerHTML = shown.map((it, i) => `<div class="item" data-i="${i}"><span class="n">${it.id}</span>
-    <span class="m">${it.source === 'mixamo' ? 'mx' : 'ov'} · ${it.cls === 'biped' ? 'bi' : 'quad'} · ${it.clips}c${it.flags.length ? ' <span class="w">⚑</span>' : ''}</span></div>`).join('');
+    <span class="m">${it.source === 'mixamo' ? 'mx' : 'ov'} · ${CLS_SHORT[it.cls] || it.cls} · ${it.clips}c${it.flags.length ? ' <span class="w">⚑</span>' : ''}</span></div>`).join('');
   cur = prev ? shown.findIndex(it => it.key === prev) : -1;
   if (cur >= 0) document.querySelector(`.item[data-i="${cur}"]`)?.classList.add('sel');
 }
@@ -208,16 +211,16 @@ function refilter() {
 async function loadClips(it, my) {
   clips = []; rootScale = 1;
   const keepName = curClip?.name;
-  if (!it.clips) { renderClipList(); return; }
+  if (!it.clips) { $('clipmeta').textContent = ''; $('clipcap').innerHTML = ''; renderClipList(); return; }
   const base = `/data/characters/${it.key}/anims/`;
-  try {
+  if (it.raw) try { const r = await fetch('/api/orig_clips?key=' + encodeURIComponent(it.key)); if (!r.ok) throw new Error('HTTP ' + r.status); clips = (await r.json()).map(c => ({ name: c.name, orig: true, m: { raw: true, frames: c.frames, fps: c.fps, duration_s: c.duration_s, motion_captions: c.caption ? [c.caption] : [] } })); it.clipErr = ''; } catch (e) { clips = []; it.clipErr = `could not load the original animations (${e.message}): restart the server, python viewer/serve.py`; if (my === token) info(it); }
+  else try {
     const d = await (await fetch(base + 'anims.json')).json();
     if (d._shared) {
       rootScale = d._shared.root_scale;
       mixamoIndex ??= await (await fetch('/data/clips/mixamo/clips.json')).json();
       clips = Object.entries(mixamoIndex).filter(([k]) => k !== '_skeleton').map(([name, m]) => ({ name, m, url: '/data/clips/mixamo/' + m.file }));
-      clips.push(...Object.entries(d).filter(([k]) => k.startsWith('rt__')).map(([name, m]) => ({ name, m, url: base + m.file })));
-    } else clips = Object.entries(d).map(([name, m]) => ({ name, m, url: base + m.file }));
+    } else clips = Object.entries(d).filter(([k, m]) => !k.startsWith('rt__') && !m.retargeted).map(([name, m]) => ({ name, m, url: base + m.file }));   // original animations only
   } catch (e) { clips = []; }
   if (my !== token) return;
   clips.sort((a, b) => a.name.localeCompare(b.name));
@@ -232,31 +235,66 @@ function renderClipList() {
   const q = $('cq').value.trim().toLowerCase();
   shownClips = clips.filter(c => !q || c.name.toLowerCase().includes(q) || (c.m.motion_captions || []).some(t => t.toLowerCase().includes(q)));
   const sel = $('clipsel'); sel.innerHTML = '';
-  for (const c of shownClips) { const o = document.createElement('option'); o.value = c.name; o.textContent = c.name; if (c.m.loop) o.className = 'loop'; if (c.m.retargeted) o.textContent = '⇄ ' + c.name; sel.appendChild(o); }
+  for (const c of shownClips) { const o = document.createElement('option'); o.value = c.name; o.textContent = c.name; if (c.m.loop) o.className = 'loop'; sel.appendChild(o); }
   if (curClip) sel.value = curClip.name;
 }
 
 function showClipMeta(c, bound) {
   const m = c.m;
+  if (m.raw) { $('clipmeta').textContent = `${m.frames} frames @ ${m.fps} fps · ${m.duration_s}s · original animation, drawn as a yellow skeleton (this character has no converted clip, so the mesh does not move)`; $('clipcap').innerHTML = ''; for (const t of m.motion_captions) { const d = document.createElement('div'); d.textContent = t; $('clipcap').appendChild(d); } return; }
   $('clipmeta').textContent = `${m.frames} frames @ ${m.fps} fps · ${m.duration_s}s · ${m.loop ? 'loop' : 'one-shot'} · root travel ${m.root_travel_m} m` +
-    (bound ? ` · bound ${bound}` : '') + (rootScale !== 1 && !m.retargeted ? ` · root ×${rootScale.toFixed(3)}` : '') +
-    (m.retargeted ? ` · retargeted from ${m.source_clip}: lift ${(+m.retargeted.lift_max).toFixed(2)} m, foot skate ${(+m.retargeted.skate_mean).toFixed(3)} m/s, reach fails ${m.retargeted.reach_fail_frames}` : '');
+    (bound ? ` · bound ${bound}` : '') + (rootScale !== 1 ? ` · root ×${rootScale.toFixed(3)}` : '');
   $('clipcap').innerHTML = '';
   for (const t of m.motion_captions || []) { const d = document.createElement('div'); d.textContent = t; $('clipcap').appendChild(d); }
 }
 
-function stopClip() { if (action) { action.stop(); } mixer?.stopAllAction(); action = null; }
+function stopOrig() { if (orig) { scene.remove(orig.group); orig.geom.dispose(); orig = null; } }
+function stopClip() { stopOrig(); if (action) { action.stop(); } mixer?.stopAllAction(); action = null; }
+
+const origCache = new Map(); let origFramed = -1;
+async function playOrig(c, my) {
+  let d = origCache.get(c.name);
+  try {
+    if (!d) { d = await (await fetch('/api/orig_motion?clip=' + encodeURIComponent(c.name))).json(); if (d.error) throw new Error(d.error); origCache.set(c.name, d); if (origCache.size > 40) origCache.delete(origCache.keys().next().value); }
+  } catch (e) { $('clipmeta').textContent = 'failed to load animation: ' + e.message; return; }
+  if (my !== clipToken || !model) return;
+  stopClip();
+  const T = d.world.length, J = d.names.length, links = [];
+  d.parents.forEach((p, j) => { if (p >= 0) links.push(j, p); });
+  const w0 = d.world[0], ext = [0, 1, 2].map(k => { const v = w0.map(p => p[k]); return [Math.min(...v), Math.max(...v)]; });
+  const big = Math.max(1e-6, ...ext.map(e => e[1] - e[0]));
+  const box = new THREE.Box3().setFromObject(model), size = box.getSize(new THREE.Vector3());
+  const s = d.aligned ? 1 : Math.max(size.x, size.y, size.z) / big;   // aligned: the positions are already in the mesh's frame, drawn on the mesh. Otherwise drawn at the mesh's size to its right, in the file's own axes
+  const off = d.aligned ? new THREE.Vector3() : new THREE.Vector3(box.max.x + 0.7 * Math.max(size.x, size.y, size.z) - ext[0][0] * s, box.min.y - ext[1][0] * s, (box.min.z + box.max.z) / 2 - (ext[2][0] + ext[2][1]) / 2 * s);
+  const geom = new THREE.BufferGeometry(); geom.setAttribute('position', new THREE.BufferAttribute(new Float32Array(links.length * 3), 3));
+  const mat = new THREE.LineBasicMaterial({ color: 0xffd34d, depthTest: false });
+  const group = new THREE.Group(); const lines = new THREE.LineSegments(geom, mat); lines.renderOrder = 10; lines.frustumCulled = false; group.add(lines); scene.add(group);
+  orig = { d, T, links, s, off, geom, group, t: 0, fps: d.fps || 30, paused: false };
+  curClip = c; $('clipsel').value = c.name; $('bplay').textContent = '⏸'; lastRoot.set(NaN, 0, 0);
+  drawOrig(); showClipMeta(c);
+  if (origFramed !== token && !d.aligned) {                                      // once per character: bring the skeleton into view too
+    origFramed = token;
+    const sb = new THREE.Box3(new THREE.Vector3(ext[0][0] * s + off.x, ext[1][0] * s + off.y, ext[2][0] * s + off.z), new THREE.Vector3(ext[0][1] * s + off.x, ext[1][1] * s + off.y, ext[2][1] * s + off.z));
+    frame(box.clone().union(sb));
+  }
+}
+function drawOrig() {
+  const o = orig, f = Math.max(0, Math.min(o.T - 1, Math.floor(o.t * o.fps))), a = o.geom.attributes.position.array, w = o.d.world[f];
+  o.links.forEach((j, i) => { a[i * 3] = w[j][0] * o.s + o.off.x; a[i * 3 + 1] = w[j][1] * o.s + o.off.y; a[i * 3 + 2] = w[j][2] * o.s + o.off.z; });
+  o.geom.attributes.position.needsUpdate = true;
+}
 
 async function playClip(c) {
   if (!model || !mixer) return;
   const my = ++clipToken; curClip = c; $('clipsel').value = c.name;
+  if (c.orig) return playOrig(c, my);
   let gltf = clipCache.get(c.url);
   try {
     if (!gltf) { gltf = await loader.loadAsync(c.url); clipCache.set(c.url, gltf); if (clipCache.size > 200) clipCache.delete(clipCache.keys().next().value); }
   } catch (e) { $('clipmeta').textContent = 'failed to load clip: ' + e.message; return; }
   if (my !== clipToken || !mixer) return;
-  let clip = gltf.animations[0].clone();
-  if (rootScale !== 1 && !c.m.retargeted) clip.tracks.forEach(t => { if (t.name.endsWith('.position')) { const v = t.values.slice(); for (let i = 0; i < v.length; i++) v[i] *= rootScale; t.values = v; } });
+  let clip = gltf.animations[c.idx || 0].clone();
+  if (rootScale !== 1) clip.tracks.forEach(t => { if (t.name.endsWith('.position')) { const v = t.values.slice(); for (let i = 0; i < v.length; i++) v[i] *= rootScale; t.values = v; } });
   let ok = 0;   // tracks whose bone exists on this character (a quick check that names line up)
   for (const t of clip.tracks) { const p = THREE.PropertyBinding.parseTrackName(t.name); if (THREE.PropertyBinding.findNode(model, p.nodeName)) ok++; }
   stopClip();
@@ -272,6 +310,7 @@ function applyLoop() {
 }
 
 function togglePlay() {
+  if (orig) { orig.paused = !orig.paused; if (!orig.paused && orig.t >= orig.T / orig.fps) orig.t = 0; $('bplay').textContent = orig.paused ? '▶' : '⏸'; return; }
   if (!action) return;
   if (!action.paused && action.isRunning()) { action.paused = true; $('bplay').textContent = '▶'; return; }
   if (action.time >= action.getClip().duration - 1e-3) action.reset().play();
@@ -289,6 +328,7 @@ $('cq').addEventListener('input', renderClipList);
 $('bplay').onclick = togglePlay;
 $('loop').onchange = applyLoop;
 $('scrub').addEventListener('input', e => {
+  if (orig) { orig.paused = true; $('bplay').textContent = '▶'; orig.t = (e.target.value / 1000) * (orig.T / orig.fps); drawOrig(); return; }
   if (!action) return;
   action.paused = true; $('bplay').textContent = '▶';
   action.time = (e.target.value / 1000) * action.getClip().duration; mixer.update(0); lastRoot.set(NaN, 0, 0);
@@ -323,6 +363,11 @@ addEventListener('resize', resize); resize();
 (function loop() {
   requestAnimationFrame(loop);
   const dt = clock.getDelta();
+  if (orig) {
+    const dur = orig.T / orig.fps;
+    if (!orig.paused) { orig.t += dt * +$('speed').value; if (orig.t >= dur) { if ($('loop').checked) orig.t %= dur; else { orig.t = dur; orig.paused = true; $('bplay').textContent = '▶'; } } }
+    drawOrig(); $('scrub').value = Math.round(Math.min(orig.t, dur) / dur * 1000); $('time').textContent = `${Math.min(orig.t, dur).toFixed(2)} / ${dur.toFixed(2)} s`;
+  }
   if (mixer && action) {
     mixer.update(dt * +$('speed').value);
     const dur = action.getClip().duration;

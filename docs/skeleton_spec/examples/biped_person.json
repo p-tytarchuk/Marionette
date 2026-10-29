@@ -1,0 +1,206 @@
+{
+ "spec": "skeleton-roles/1",
+ "id": "biped_person",
+ "view": {
+  "yaw_deg": 0,
+  "facing": "right"
+ },
+ "parts": [
+  {
+   "id": "trunk",
+   "kind": "trunk"
+  },
+  {
+   "id": "head",
+   "kind": "head"
+  },
+  {
+   "id": "arm_L",
+   "kind": "arm",
+   "side": "L",
+   "girdle": "pectoral",
+   "layer": "front",
+   "visible": true
+  },
+  {
+   "id": "arm_R",
+   "kind": "arm",
+   "side": "R",
+   "girdle": "pectoral",
+   "layer": "behind",
+   "visible": true
+  },
+  {
+   "id": "leg_L",
+   "kind": "leg",
+   "side": "L",
+   "girdle": "pelvic",
+   "layer": "front",
+   "visible": true
+  },
+  {
+   "id": "leg_R",
+   "kind": "leg",
+   "side": "R",
+   "girdle": "pelvic",
+   "layer": "behind",
+   "visible": true
+  }
+ ],
+ "joints": [
+  {
+   "id": "trunk1",
+   "parent": null,
+   "pos": [
+    0,
+    0.5
+   ],
+   "part": "trunk"
+  },
+  {
+   "id": "trunk2",
+   "parent": "trunk1",
+   "pos": [
+    0.01,
+    0.62
+   ],
+   "part": "trunk"
+  },
+  {
+   "id": "trunk3",
+   "parent": "trunk2",
+   "pos": [
+    0.02,
+    0.74
+   ],
+   "part": "trunk"
+  },
+  {
+   "id": "head1",
+   "parent": "trunk3",
+   "pos": [
+    0.03,
+    0.8
+   ],
+   "part": "head"
+  },
+  {
+   "id": "head2",
+   "parent": "head1",
+   "pos": [
+    0.04,
+    0.9
+   ],
+   "part": "head"
+  },
+  {
+   "id": "arm_L1",
+   "parent": "trunk3",
+   "pos": [
+    0.03,
+    0.7
+   ],
+   "part": "arm_L"
+  },
+  {
+   "id": "arm_L2",
+   "parent": "arm_L1",
+   "pos": [
+    0.06,
+    0.58
+   ],
+   "part": "arm_L"
+  },
+  {
+   "id": "arm_L3",
+   "parent": "arm_L2",
+   "pos": [
+    0.08,
+    0.47
+   ],
+   "part": "arm_L"
+  },
+  {
+   "id": "arm_R1",
+   "parent": "trunk3",
+   "pos": [
+    -0.02,
+    0.7
+   ],
+   "part": "arm_R"
+  },
+  {
+   "id": "arm_R2",
+   "parent": "arm_R1",
+   "pos": [
+    0.0,
+    0.58
+   ],
+   "part": "arm_R"
+  },
+  {
+   "id": "arm_R3",
+   "parent": "arm_R2",
+   "pos": [
+    0.02,
+    0.47
+   ],
+   "part": "arm_R"
+  },
+  {
+   "id": "leg_L1",
+   "parent": "trunk1",
+   "pos": [
+    0.02,
+    0.28
+   ],
+   "part": "leg_L"
+  },
+  {
+   "id": "leg_L2",
+   "parent": "leg_L1",
+   "pos": [
+    0.02,
+    0.1
+   ],
+   "part": "leg_L"
+  },
+  {
+   "id": "leg_L3",
+   "parent": "leg_L2",
+   "pos": [
+    0.06,
+    0.0
+   ],
+   "part": "leg_L"
+  },
+  {
+   "id": "leg_R1",
+   "parent": "trunk1",
+   "pos": [
+    -0.02,
+    0.28
+   ],
+   "part": "leg_R"
+  },
+  {
+   "id": "leg_R2",
+   "parent": "leg_R1",
+   "pos": [
+    -0.02,
+    0.1
+   ],
+   "part": "leg_R"
+  },
+  {
+   "id": "leg_R3",
+   "parent": "leg_R2",
+   "pos": [
+    0.02,
+    0.0
+   ],
+   "part": "leg_R"
+  }
+ ],
+ "declared_class": "biped"
+}

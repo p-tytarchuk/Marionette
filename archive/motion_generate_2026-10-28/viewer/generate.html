@@ -98,6 +98,7 @@
       <div class="row">
         <label>Tries <input type="number" id="tries" value="4" min="1" max="16" step="1"></label>
         <label style="display:flex;gap:6px;align-items:center;grid-auto-flow:column;justify-content:start;flex:2"><input type="checkbox" id="land" checked> flips must land upright</label>
+        <label title="plain mode only: cap the latent inside every denoising step instead of after sampling (scripts/generate/flip_sweep.py: about 8-10 points more good flips per sample, more spikes)" style="display:flex;gap:6px;align-items:center;grid-auto-flow:column;justify-content:start;flex:2"><input type="checkbox" id="stepcap"> cap inside the sampler (experimental)</label>
       </div>
       <small>Plain mode (flips, kicks, jumps, rolls…) draws up to this many candidates and keeps the first that is smooth (at most 1 joint step over 60°, none over 100°) and, for a flip prompt, completes the turn (hips pitch range at least 300°)
         and, if ticked, ends upright (body-up axis within 37° of vertical over the last 8 frames). If none passes, the best candidate is used and the result says so. About 8-9% of single flip samples pass all three, so
@@ -195,7 +196,7 @@ let lastShape = null;
 async function generate(newSeed, override) {
   if (busy) return;
   if (newSeed) $('seed').value = Math.floor(Math.random() * 100000);
-  const body = { prompt: override ? override.prompt : $('prompt').value, target: override ? override.target : $('target').value, guidance: +$('guidance').value, seed: +$('seed').value, mode: $('mode').value, rewrite: $('rewrite').checked, smooth: +$('smooth').value, straight: $('straight').checked, tries: +$('tries').value, land: $('land').checked, frontend: $('frontend').value, mobile: $('mobile').checked, threads: +$('threads').value, auto_character: $('auto').checked && !override };
+  const body = { prompt: override ? override.prompt : $('prompt').value, target: override ? override.target : $('target').value, guidance: +$('guidance').value, seed: +$('seed').value, mode: $('mode').value, rewrite: $('rewrite').checked, smooth: +$('smooth').value, straight: $('straight').checked, tries: +$('tries').value, step_cap: $('stepcap').checked ? 0.9 : 0, land: $('land').checked, frontend: $('frontend').value, mobile: $('mobile').checked, threads: +$('threads').value, auto_character: $('auto').checked && !override };
   if (!body.target) { $('status').className = 'err'; $('status').textContent = 'pick a character'; return; }
   busy = true; $('go').disabled = $('dice').disabled = true;
   $('status').className = ''; const t0 = Date.now();

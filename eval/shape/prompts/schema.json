@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "One shape prompt (one JSON object per line of prompts_shape.jsonl). Body only: no motion words.",
+  "type": "object",
+  "required": ["id", "text", "subject_class", "difficulty", "split", "source"],
+  "additionalProperties": false,
+  "properties": {
+    "id": {"type": "string", "pattern": "^s[0-9]{5}$", "description": "stable id, never reused"},
+    "text": {"type": "string", "minLength": 3, "description": "the prompt exactly as given to the system; English; describes the body only"},
+    "subject_class": {"enum": ["biped", "quadruped", "other"]},
+    "subject": {"type": "string", "description": "free text, e.g. goblin, giraffe, robot"},
+    "attributes": {"type": "array", "items": {"type": "string"}, "description": "e.g. stocky, long legs, big ears, tail"},
+    "expected_legs": {"type": ["integer", "null"], "description": "2, 4, 0, 6 ...; null if the prompt does not say"},
+    "difficulty": {"enum": ["easy", "medium", "hard", "out_of_distribution"]},
+    "split": {"enum": ["dev", "test"], "description": "dev: tune the judge prompt and thresholds; test: touched once per system version"},
+    "source": {"enum": ["human", "llm", "template"]},
+    "notes": {"type": "string"}
+  }
+}

@@ -1,0 +1,362 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Marionette Retarget Compare</title>
+<style>
+  :root { --bg:#14161a; --panel:#1b1e24; --line:#2a2e36; --text:#d8dce4; --dim:#8a92a0; --accent:#6ea8ff; --warn:#e8b04a; --bad:#ef6b6b; --good:#5fcf8a; --src:#6ea8ff; --tgt:#ff9f5a; }
+  * { box-sizing:border-box; }
+  html,body { margin:0; height:100%; background:var(--bg); color:var(--text); font:13px/1.4 system-ui,-apple-system,sans-serif; }
+  #app { display:grid; grid-template-columns:320px 1fr; height:100%; }
+  #side { background:var(--panel); border-right:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  #filters { padding:10px; border-bottom:1px solid var(--line); display:grid; gap:6px; }
+  #filters input[type=text], select { width:100%; background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:6px; padding:6px 8px; font:inherit; }
+  #count { color:var(--dim); font-size:12px; }
+  #list { overflow:auto; flex:1; }
+  .item { padding:6px 10px; cursor:pointer; border-bottom:1px solid #20242b; }
+  .item:hover { background:#222730; }
+  .item.sel { background:#25324a; }
+  .item .a { display:flex; justify-content:space-between; gap:8px; }
+  .item .n { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .item .m { color:var(--dim); font-size:11px; white-space:nowrap; }
+  .item .t { color:var(--dim); font-size:11px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  #main { position:relative; min-width:0; }
+  canvas { display:block; width:100%; height:100%; }
+  .lbl { position:absolute; transform:translateX(-50%); padding:2px 8px; border-radius:10px; font-size:12px; white-space:nowrap; pointer-events:none; background:rgba(20,22,26,.8); border:1px solid; }
+  #lsrc { color:var(--src); border-color:var(--src); } #ltgt { color:var(--tgt); border-color:var(--tgt); }
+  #hint { position:absolute; left:12px; top:12px; color:var(--dim); font-size:12px; max-width:calc(100% - 340px); }
+  #msg { position:absolute; inset:0; display:grid; place-items:center; color:var(--dim); pointer-events:none; }
+  #info { position:absolute; top:12px; right:12px; width:290px; background:rgba(27,30,36,.92); border:1px solid var(--line); border-radius:10px; padding:10px 12px; }
+  #info h3 { margin:0 0 4px; font-size:13px; word-break:break-all; }
+  #info table { width:100%; border-collapse:collapse; }
+  #info td { padding:1px 0; vertical-align:top; }
+  #info td:first-child { color:var(--dim); width:118px; }
+  .good { color:var(--good); } .warn { color:var(--warn); } .bad { color:var(--bad); }
+  #cap { margin-top:6px; color:var(--dim); font-size:12px; max-height:70px; overflow:auto; }
+  #bar { position:absolute; left:12px; right:12px; bottom:12px; background:rgba(27,30,36,.94); border:1px solid var(--line); border-radius:10px; padding:8px 10px; display:grid; gap:6px; }
+  .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  #scrub { flex:1; min-width:120px; accent-color:var(--accent); }
+  #time { color:var(--dim); font-variant-numeric:tabular-nums; white-space:nowrap; min-width:170px; text-align:right; }
+  button { background:var(--panel); color:var(--text); border:1px solid var(--line); border-radius:6px; padding:4px 10px; font:inherit; cursor:pointer; }
+  button.on { border-color:var(--accent); color:var(--accent); }
+  label { display:inline-flex; gap:4px; align-items:center; color:var(--dim); white-space:nowrap; }
+  select.sm { width:auto; padding:2px 4px; }
+  .sep { width:1px; height:18px; background:var(--line); }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/" } }
+</script>
+</head>
+<body>
+<script>if (location.search.includes("embed")) document.write("<style>#app{grid-template-columns:1fr!important} #side{display:none!important} #hint{max-width:calc(100% - 340px)!important}</style>");</script>
+<div id="app">
+  <aside id="side">
+    <div id="filters">
+      <input type="text" id="q" placeholder="Search target or source clip…" autocomplete="off">
+      <select id="fcls"><option value="">all target classes</option><option>quadruped</option><option>biped</option></select>
+      <select id="fgate" title="the generator's candidate gate applied to the quality stored with each generated clip, whether or not the gate was on when it was made"><option value="">all clips</option><option value="pass">passes the gate</option><option value="fail">fails the gate</option><option value="none">no quality stored</option></select>
+      <div class="row"><span id="count"></span><a href="/viewer/" style="margin-left:auto;color:var(--accent)">character browser →</a></div>
+    </div>
+    <div id="list"></div>
+  </aside>
+  <main id="main">
+    <div id="hint">drag: orbit · wheel: zoom · right-drag: pan · ↑/↓ (j/k): result · space: play/pause · ←/→: step one frame · 1 side · 2 front · 3 three-quarter · x source on/off · o overlay · s skeleton · t trails · f follow</div>
+    <div id="msg">loading…</div>
+    <div class="lbl" id="lsrc"></div><div class="lbl" id="ltgt"></div>
+    <div id="info"></div>
+    <div id="bar">
+      <div class="row">
+        <button id="bplay">⏸</button><button id="bprev" title="previous frame">⏮</button><button id="bnext" title="next frame">⏭</button>
+        <input type="range" id="scrub" min="0" max="1000" value="0"><span id="time"></span>
+      </div>
+      <div class="row">
+        <label>speed <select class="sm" id="speed"><option>0.1</option><option>0.25</option><option>0.5</option><option selected>1</option><option>2</option></select></label>
+        <label><input type="checkbox" id="loop" checked> loop</label>
+        <label><input type="checkbox" id="follow" checked> follow</label>
+        <span class="sep"></span>
+        <button id="bside" title="1">Side</button><button id="bfront" title="2">Front</button><button id="b34" title="3">3/4</button>
+        <span class="sep"></span>
+        <button id="bsrc" class="on" title="x">Source</button><button id="bover" title="o">Overlay</button><button id="bskel" title="s">Skeletons</button><button id="btrail" class="on" title="t">Trails</button><button id="bmesh" class="on">Mesh</button>
+        <span class="sep"></span>
+        <label id="lchar">source character <select class="sm" id="srcchar"></select></label>
+      </div>
+    </div>
+  </main>
+</div>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+const $ = id => document.getElementById(id);
+const main = $('main');
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+main.insertBefore(renderer.domElement, main.firstChild);
+const scene = new THREE.Scene(); scene.background = new THREE.Color(0x14161a);
+const camera = new THREE.PerspectiveCamera(40, 1, 0.01, 300);
+const controls = new OrbitControls(camera, renderer.domElement); controls.enableDamping = true;
+scene.add(new THREE.HemisphereLight(0xffffff, 0x303640, 1.6));
+const sun = new THREE.DirectionalLight(0xffffff, 1.8); sun.position.set(2, 4, 3); scene.add(sun);
+const grid = new THREE.GridHelper(20, 20, 0x56607a, 0x2e3442); scene.add(grid);
+const axes = new THREE.AxesHelper(0.6); axes.position.y = 0.002; scene.add(axes);
+
+const SEP = 1.5;                                    // metres between the two characters in side-by-side layout
+const COL = { src: 0x6ea8ff, tgt: 0xff9f5a };
+const loader = new GLTFLoader(), cache = new Map();
+const side = k => ({ k, group: new THREE.Group(), model: null, skel: null, mixer: null, action: null, root: null, trail: null, dur: 0, offset: 0 });
+const S = { src: side('src'), tgt: side('tgt') };
+scene.add(S.src.group, S.tgt.group);
+
+let items = [], shown = [], cur = -1, mixamo = [], token = 0;
+let t = 0, playing = true, overlay = false, showSkel = false, showTrail = true, showMesh = true;
+let showSrc = !location.search.includes('nosource');     // the source clip (decoded human skeleton) beside / under the result; ?nosource starts without it
+const lastMid = new THREE.Vector3(NaN, 0, 0), tmp = new THREE.Vector3();
+const clock = new THREE.Clock();
+
+const load = async url => { if (!cache.has(url)) cache.set(url, loader.loadAsync(url)); return cache.get(url); };   // clips only
+function disposeModel(o) {
+  o.traverse(c => { c.geometry?.dispose(); [].concat(c.material || []).forEach(m => { for (const k in m) if (m[k]?.isTexture) m[k].dispose(); m.dispose(); }); });
+}
+// each side owns its own copy of a model (the GLB is reloaded; the browser cache makes that cheap)
+async function fresh(url) { const g = await new GLTFLoader().loadAsync(url); return g; }
+
+function clearSide(s) {
+  if (s.model) { s.group.remove(s.model); disposeModel(s.model); }
+  if (s.skel) { scene.remove(s.skel); s.skel.dispose?.(); }
+  if (s.trail) { scene.remove(s.trail); s.trail.geometry.dispose(); }
+  Object.assign(s, { model: null, skel: null, mixer: null, action: null, root: null, trail: null, dur: 0 });
+}
+
+async function setup(s, modelUrl, clipUrl, rootScale) {
+  const [g, clipGltf] = await Promise.all([fresh(modelUrl), load(clipUrl)]);
+  return { s, g, clip: clipGltf.animations[0].clone(), rootScale };
+}
+
+function attach({ s, g, clip, rootScale }) {
+  clearSide(s);
+  s.model = g.scene; s.group.add(s.model); s.model.updateMatrixWorld(true);
+  s.root = null; s.model.traverse(o => { if (!s.root && o.isBone && !o.parent?.isBone) s.root = o; });
+  if (rootScale !== 1) clip.tracks.forEach(tr => { if (tr.name.endsWith('.position')) { const v = tr.values.slice(); for (let i = 0; i < v.length; i++) v[i] *= rootScale; tr.values = v; } });
+  s.mixer = new THREE.AnimationMixer(s.model);
+  s.action = s.mixer.clipAction(clip); s.action.setLoop(THREE.LoopRepeat, Infinity); s.action.play(); s.action.paused = true;
+  s.dur = clip.duration;
+  let ok = 0; for (const tr of clip.tracks) { const p = THREE.PropertyBinding.parseTrackName(tr.name); if (THREE.PropertyBinding.findNode(s.model, p.nodeName)) ok++; }
+  s.bound = `${ok}/${clip.tracks.length}`;
+  s.skel = new THREE.SkeletonHelper(s.model); s.skel.material.depthTest = false; s.skel.material.color.set(COL[s.k]); s.skel.renderOrder = 10; scene.add(s.skel);
+}
+
+function sampleTrail(s, fps) {                      // root path on the ground, sampled over the whole clip
+  const n = Math.max(2, Math.round(s.dur * fps)), pts = [];
+  for (let i = 0; i <= n; i++) {
+    s.action.time = (i / n) * s.dur * 0.99999; s.mixer.update(0); s.group.updateMatrixWorld(true);
+    s.root.getWorldPosition(tmp); pts.push(new THREE.Vector3(tmp.x, 0.01, tmp.z));
+  }
+  s.trail = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: COL[s.k], transparent: true, opacity: 0.8 }));
+  scene.add(s.trail);
+}
+
+function layout() {
+  S.src.group.position.x = overlay ? 0 : -SEP / 2; S.tgt.group.position.x = (overlay || !showSrc) ? 0 : SEP / 2;
+  S.src.group.visible = showSrc;
+  for (const s of Object.values(S)) {
+    if (!s.model) continue;
+    const meshVisible = showMesh && !(overlay && s.k === 'src');            // overlay: the source is drawn as a skeleton only
+    s.model.traverse(c => { if (c.isMesh) c.visible = meshVisible; });
+    s.skel.visible = showSkel || (overlay && s.k === 'src');
+    if (s.trail) s.trail.visible = showTrail && (s.k !== 'src' || showSrc);
+    if (s.trail) s.trail.position.x = s.group.position.x;
+  }
+  $('lsrc').style.display = (overlay || !showSrc) ? 'none' : '';
+  $('lchar').style.display = (showSrc && shown[cur]?.source_shared) ? '' : 'none';
+  $('bsrc').classList.toggle('on', showSrc);
+  $('bover').classList.toggle('on', overlay); $('bskel').classList.toggle('on', showSkel);
+  $('btrail').classList.toggle('on', showTrail); $('bmesh').classList.toggle('on', showMesh);
+  scene.updateMatrixWorld(true);
+}
+
+function gateMark(it) {
+  if (!it.gate) return '';
+  return it.gate.passed ? ' <span class="good" title="passes the generator\'s quality gate">✓</span>' : ` <span class="bad" title="${it.gate.reasons.join('; ').replace(/"/g, "'")}">✗</span>`;
+}
+function genHtml(it) {
+  const g = it.gen, gt = it.gate;
+  let h = '';
+  if (gt) h += `<tr><td>generator gate</td><td class="${gt.passed ? 'good' : 'bad'}">${gt.passed ? 'passes' : 'fails'}${gt.reasons.length ? '<br><small>' + gt.reasons.join('<br>') + '</small>' : ''}</td></tr>`;
+  else if (g) h += `<tr><td>generator gate</td><td>no quality stored (older clip)</td></tr>`;
+  if (g && g.kind === 'generated') h += `<tr><td>generated with</td><td><small>seed ${g.seed} · guidance ${g.guidance} · ${g.mode}${g.znorm ? ' · cap ' + g.znorm : ' · no cap'} · smoothing ${g.smooth}<br>candidate ${g.tries_used} used${g.typed && g.typed !== g.prompt ? '<br>typed "' + g.typed + '"<br>used "' + g.prompt + '"' : ''}</small></td></tr>`;
+  return h;
+}
+
+function metricsHtml(it) {
+  const m = it.metrics, f = (x, d = 3) => (+x).toFixed(d);
+  const cls = (v, g, w) => v <= g ? 'good' : v <= w ? 'warn' : 'bad';
+  const row = (a, b, c) => `<tr><td>${a}</td><td class="${c || ''}">${b}</td></tr>`;
+  return `<h3>${it.name.replace(/^rt__/, '')} → ${it.target.replace(/^(objaverse|mixamo)_/, '$1 ').slice(0, 30)}</h3><table>
+    ${row('target class', it.target_cls)}
+    ${genHtml(it)}
+    ${row('frames / length', `${it.frames} @ ${it.fps} fps · ${it.duration_s}s`)}
+    ${row('foot sliding', f(m.skate_mean) + ' m/s', cls(m.skate_mean, 0.02, 0.08))}
+    ${row('reach failures', m.reach_fail_frames + ' frames', cls(m.reach_fail_frames, 3, 15))}
+    ${row('ground penetration', f(m.penetration_max) + ' m', cls(m.penetration_max, 0.01, 0.03))}
+    ${row('rotation spikes >60°', m.rot_steps_over_60deg ?? '—', cls(m.rot_steps_over_60deg ?? 0, 0, 3))}
+    ${row('body lift (max)', f(m.lift_max, 2) + ' m', cls(m.lift_max, 0.1, 0.3))}
+    ${row('size ratio (hips)', f(m.rho, 2))}
+    ${row('forelimbs from', m.forelimbs || '—')}
+    ${row('tracks bound', `src ${S.src.bound || '—'} · tgt ${S.tgt.bound || '—'}`)}</table>
+    <div id="cap">${(it.captions || []).map(c => `<div>${c}</div>`).join('')}</div>`;
+}
+
+async function rootScaleOf(charKey) {
+  try { const d = await (await fetch(`/data/characters/${charKey}/anims/anims.json`)).json(); return d._shared?.root_scale ?? 1; } catch { return 1; }
+}
+
+async function select(i, keep = false) {
+  if (i < 0 || i >= shown.length) return;
+  cur = i; const it = shown[i], my = ++token;
+  document.querySelectorAll('.item.sel').forEach(e => e.classList.remove('sel'));
+  const el = document.querySelector(`.item[data-i="${i}"]`); el?.classList.add('sel'); el?.scrollIntoView({ block: 'nearest' });
+  history.replaceState(null, '', '#' + it.target + '|' + it.name);
+  $('msg').textContent = 'loading…'; $('msg').style.display = 'grid';
+  try {
+    const srcChar = it.source_shared ? $('srcchar').value : null;
+    const srcModel = it.source_shared ? `/data/characters/${srcChar}/model.glb` : it.source_model_url;
+    const rs = it.source_shared ? await rootScaleOf(srcChar) : 1;
+    if (!srcModel || !it.source_clip_url) throw new Error('source clip or character not found');
+    const [a, b] = await Promise.all([setup(S.src, srcModel, it.source_clip_url, rs), setup(S.tgt, it.target_url, it.clip_url, 1)]);
+    if (my !== token) { disposeModel(a.g.scene); disposeModel(b.g.scene); return; }
+    attach(a); attach(b);
+    sampleTrail(S.src, it.fps); sampleTrail(S.tgt, it.fps);
+    t = 0; lastMid.set(NaN, 0, 0);
+    $('lchar').style.display = it.source_shared ? '' : 'none';
+    $('lsrc').textContent = 'source: ' + it.source_clip + (it.source_shared ? ` · ${srcChar.replace('mixamo_', '')}` : '');
+    $('ltgt').textContent = 'retargeted: ' + it.target.replace(/^objaverse_/, '').slice(0, 14) + '…';
+    $('msg').style.display = 'none';
+    layout();
+    if (!keep) view('34');
+    $('info').innerHTML = metricsHtml(it);
+  } catch (e) { $('msg').textContent = 'failed to load: ' + e.message; $('msg').style.display = 'grid'; }
+}
+
+function bounds() {
+  const b = new THREE.Box3(); for (const s of Object.values(S)) if (s.model && (s.k !== 'src' || showSrc)) b.expandByObject(s.model); return b;
+}
+function view(kind) {
+  const b = bounds();
+  if (!b.isEmpty()) {
+    const size = b.getSize(new THREE.Vector3()), c = b.getCenter(new THREE.Vector3());
+    c.y = Math.min(c.y, size.y * 0.5);
+    const d = Math.max(size.y * 1.7, (overlay || !showSrc) ? 2.2 : SEP + 1.8) * 1.1;
+    controls.target.copy(c);
+    const dir = { side: [1, 0.12, 0], front: [0, 0.15, 1], 34: [0.75, 0.3, 0.9] }[kind] ?? [0.75, 0.3, 0.9];
+    camera.position.set(c.x + dir[0] * d, c.y + dir[1] * d, c.z + dir[2] * d);
+    camera.near = d / 100; camera.far = d * 60; camera.updateProjectionMatrix(); controls.update();
+    lastMid.set(NaN, 0, 0);
+  }
+}
+
+function applyTime() {
+  for (const s of Object.values(S)) if (s.action) { s.action.time = Math.min(t, s.dur * 0.99999); s.mixer.update(0); }
+  scene.updateMatrixWorld(true);
+}
+const dur = () => Math.min(showSrc ? (S.src.dur || Infinity) : Infinity, S.tgt.dur || Infinity);
+const fps = () => shown[cur]?.fps || 30;
+const setPlaying = p => { playing = p; $('bplay').textContent = p ? '⏸' : '▶'; };
+function stepFrame(d) { setPlaying(false); const D = dur(); if (!isFinite(D)) return; t = ((Math.round(t * fps()) + d) / fps() + D) % D; }
+
+function labels() {
+  for (const [k, id] of [['src', 'lsrc'], ['tgt', 'ltgt']]) {
+    const s = S[k]; if (!s.model || (k === 'src' && !showSrc)) continue;
+    const p = new THREE.Vector3(s.group.position.x, 0, 0);
+    if (s.root) { s.root.getWorldPosition(p); } p.y = 0;
+    const box = new THREE.Box3().setFromObject(s.model); p.y = box.max.y + 0.08;
+    p.project(camera);
+    const el = $(id); el.style.left = ((p.x * 0.5 + 0.5) * main.clientWidth) + 'px'; el.style.top = ((-p.y * 0.5 + 0.5) * main.clientHeight - 24) + 'px';
+  }
+  if (overlay) { $('ltgt').style.display = ''; }
+}
+
+function followCamera() {
+  const a = new THREE.Vector3(), n = Object.values(S).filter(s => s.root && (s.k !== 'src' || showSrc));
+  if (!n.length) return;
+  n.forEach(s => { s.root.getWorldPosition(tmp); a.add(tmp); }); a.multiplyScalar(1 / n.length);
+  if (!Number.isNaN(lastMid.x)) { const dx = a.x - lastMid.x, dz = a.z - lastMid.z; camera.position.x += dx; camera.position.z += dz; controls.target.x += dx; controls.target.z += dz; }
+  lastMid.copy(a);
+}
+
+function resize() { const w = main.clientWidth, h = main.clientHeight; renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); }
+addEventListener('resize', resize); resize();
+
+(function loop() {
+  requestAnimationFrame(loop);
+  const dt = clock.getDelta(), D = dur();
+  if (isFinite(D)) {
+    if (playing) { t += dt * +$('speed').value; if (t >= D) { if ($('loop').checked) t %= D; else { t = D * 0.99999; setPlaying(false); } } }
+    applyTime();
+    $('scrub').value = Math.round(t / D * 1000);
+    $('time').textContent = `frame ${String(Math.round(t * fps())).padStart(3)} / ${Math.round(D * fps())} · ${t.toFixed(2)} / ${D.toFixed(2)} s`;
+    if ($('follow').checked) followCamera(); else lastMid.set(NaN, 0, 0);
+    labels();
+  }
+  controls.update(); renderer.render(scene, camera);
+})();
+
+// ------------------------------------------------------------------ ui
+function refilter() {
+  const q = $('q').value.trim().toLowerCase(), c = $('fcls').value, g = $('fgate').value, prev = shown[cur];
+  shown = items.filter(it => (!q || (it.target + ' ' + it.source_clip).toLowerCase().includes(q)) && (!c || it.target_cls === c)
+    && (!g || (g === 'none' ? !it.gate : it.gate && (it.gate.passed ? 'pass' : 'fail') === g)));
+  $('count').textContent = `${shown.length} / ${items.length} results`;
+  $('list').innerHTML = shown.map((it, i) => {
+    const m = it.metrics, bad = m.reach_fail_frames > 15 || m.skate_mean > 0.08 || m.penetration_max > 0.03;
+    return `<div class="item" data-i="${i}"><div class="a"><span class="n">${it.source_clip}</span><span class="m">${it.target_cls === 'biped' ? 'bi' : 'quad'}${bad ? ' <span class="warn">⚑</span>' : ''}${gateMark(it)}</span></div>
+      <div class="t">→ ${it.target.replace(/^objaverse_/, '')}</div></div>`;
+  }).join('');
+  cur = prev ? shown.indexOf(prev) : -1;
+  if (cur >= 0) document.querySelector(`.item[data-i="${cur}"]`)?.classList.add('sel');
+}
+$('q').addEventListener('input', refilter); $('fcls').addEventListener('input', refilter); $('fgate').addEventListener('input', refilter);
+$('list').addEventListener('click', e => { const el = e.target.closest('.item'); if (el) select(+el.dataset.i, true); });
+$('bplay').onclick = () => setPlaying(!playing);
+$('bprev').onclick = () => stepFrame(-1); $('bnext').onclick = () => stepFrame(1);
+$('scrub').addEventListener('input', e => { setPlaying(false); const D = dur(); if (isFinite(D)) t = e.target.value / 1000 * D; });
+$('bside').onclick = () => view('side'); $('bfront').onclick = () => view('front'); $('b34').onclick = () => view('34');
+$('bsrc').onclick = () => { showSrc = !showSrc; layout(); view('34'); };
+window.setSource = on => { if (showSrc !== !!on) $('bsrc').click(); };      // called by generate.html (same origin)
+$('bover').onclick = () => { overlay = !overlay; layout(); view('34'); };
+$('bskel').onclick = () => { showSkel = !showSkel; layout(); };
+$('btrail').onclick = () => { showTrail = !showTrail; layout(); };
+$('bmesh').onclick = () => { showMesh = !showMesh; layout(); };
+$('srcchar').addEventListener('change', () => select(cur, true));
+addEventListener('keydown', e => {
+  if (['INPUT', 'SELECT'].includes(e.target.tagName) && !['range', 'checkbox'].includes(e.target.type)) return;
+  const k = e.key;
+  if (k === 'ArrowDown' || k === 'j') { select(Math.min(cur + 1, shown.length - 1), true); e.preventDefault(); }
+  else if (k === 'ArrowUp' || k === 'k') { select(Math.max(cur - 1, 0), true); e.preventDefault(); }
+  else if (k === 'ArrowRight' || k === '.') { stepFrame(1); e.preventDefault(); }
+  else if (k === 'ArrowLeft' || k === ',') { stepFrame(-1); e.preventDefault(); }
+  else if (k === ' ') { setPlaying(!playing); e.preventDefault(); }
+  else if (k === '1') view('side'); else if (k === '2') view('front'); else if (k === '3') view('34');
+  else if (k === 'x') $('bsrc').click(); else if (k === 'o') $('bover').click(); else if (k === 's') $('bskel').click(); else if (k === 't') $('btrail').click(); else if (k === 'f') $('follow').click();
+});
+
+try {
+  const hash = decodeURIComponent(location.hash.slice(1)).split('|');       // the generator page embeds this player with ?embed#target|clip: it needs only that clip, not the list of every clip (13 s to build)
+  const one = location.search.includes('embed') && hash.length === 2 && hash[1];
+  const d = await (await fetch(one ? `/api/retarget?target=${encodeURIComponent(hash[0])}&name=${encodeURIComponent(hash[1])}` : '/api/retargets')).json();
+  items = d.items; mixamo = d.mixamo;
+  $('srcchar').innerHTML = mixamo.map(k => `<option value="${k}"${k === 'mixamo_Aciana' ? ' selected' : ''}>${k.replace('mixamo_', '')}</option>`).join('');
+  if (!items.length) $('msg').textContent = 'no retargeted clips yet — run scripts/rigging/retarget.py --source-clip <clip> --target <character>';
+  else {
+    refilter();
+    const [tk, nm] = decodeURIComponent(location.hash.slice(1)).split('|');
+    const i = shown.findIndex(it => it.target === tk && it.name === nm);
+    select(i >= 0 ? i : 0);
+  }
+} catch (e) { $('msg').textContent = 'could not load /api/retargets — run: python3 viewer/serve.py'; }
+</script>
+</body>
+</html>

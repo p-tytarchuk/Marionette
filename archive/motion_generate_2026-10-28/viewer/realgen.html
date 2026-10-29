@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Marionette Retarget Compare</title>
+<title>Marionette Real vs Generated</title>
 <style>
   :root { --bg:#14161a; --panel:#1b1e24; --line:#2a2e36; --text:#d8dce4; --dim:#8a92a0; --accent:#6ea8ff; --warn:#e8b04a; --bad:#ef6b6b; --good:#5fcf8a; --src:#6ea8ff; --tgt:#ff9f5a; }
   * { box-sizing:border-box; }
@@ -43,6 +43,9 @@
   label { display:inline-flex; gap:4px; align-items:center; color:var(--dim); white-space:nowrap; }
   select.sm { width:auto; padding:2px 4px; }
   .sep { width:1px; height:18px; background:var(--line); }
+  #app { grid-template-columns:320px 1fr 400px; } #infoside { background:var(--panel); border-left:1px solid var(--line); overflow:auto; padding:12px; min-height:0; }
+  #info { position:static; width:auto; background:none; border:0; padding:0; border-radius:0; } #info td { word-break:break-word; } #info td:first-child { width:140px; } #info td:nth-child(2), #info td:nth-child(3) { font-variant-numeric:tabular-nums; } #info details { margin-top:8px; } #info summary { cursor:pointer; color:var(--dim); }
+  #info select, #info input { width:100%; background:var(--panel); color:var(--text); border:1px solid var(--line); border-radius:6px; padding:4px 6px; font:inherit; margin-top:4px; } #info small { color:var(--dim); }
 </style>
 <script type="importmap">
 { "imports": {
@@ -55,8 +58,9 @@
 <div id="app">
   <aside id="side">
     <div id="filters">
-      <input type="text" id="q" placeholder="Search target or source clip…" autocomplete="off">
+      <input type="text" id="q" placeholder="Search generated clips (prompt words, seed)…" autocomplete="off">
       <select id="fcls"><option value="">all target classes</option><option>quadruped</option><option>biped</option></select>
+      <select id="fgate" title="the generator's candidate gate applied to the quality stored with each generated clip, whether or not the gate was on when it was made"><option value="">all clips</option><option value="pass">passes the gate</option><option value="fail">fails the gate</option><option value="none">no quality stored</option></select>
       <div class="row"><span id="count"></span><a href="/viewer/" style="margin-left:auto;color:var(--accent)">character browser →</a></div>
     </div>
     <div id="list"></div>
@@ -65,7 +69,6 @@
     <div id="hint">drag: orbit · wheel: zoom · right-drag: pan · ↑/↓ (j/k): result · space: play/pause · ←/→: step one frame · 1 side · 2 front · 3 three-quarter · x source on/off · o overlay · s skeleton · t trails · f follow</div>
     <div id="msg">loading…</div>
     <div class="lbl" id="lsrc"></div><div class="lbl" id="ltgt"></div>
-    <div id="info"></div>
     <div id="bar">
       <div class="row">
         <button id="bplay">⏸</button><button id="bprev" title="previous frame">⏮</button><button id="bnext" title="next frame">⏭</button>
@@ -75,15 +78,17 @@
         <label>speed <select class="sm" id="speed"><option>0.1</option><option>0.25</option><option>0.5</option><option selected>1</option><option>2</option></select></label>
         <label><input type="checkbox" id="loop" checked> loop</label>
         <label><input type="checkbox" id="follow" checked> follow</label>
+        <label title="the real and the generated clip rarely have the same length: play both over one shared length (each clip's own start to end) so the phases line up. Off: both at their own speed, looping over the shorter one"><input type="checkbox" id="fit" checked> same length</label>
         <span class="sep"></span>
         <button id="bside" title="1">Side</button><button id="bfront" title="2">Front</button><button id="b34" title="3">3/4</button>
         <span class="sep"></span>
-        <button id="bsrc" class="on" title="x">Source</button><button id="bover" title="o">Overlay</button><button id="bskel" title="s">Skeletons</button><button id="btrail" class="on" title="t">Trails</button><button id="bmesh" class="on">Mesh</button>
+        <button id="bsrc" class="on" title="x">Real</button><button id="bover" title="o">Overlay</button><button id="bskel" title="s">Skeletons</button><button id="btrail" class="on" title="t">Trails</button><button id="bmesh" class="on">Mesh</button>
         <span class="sep"></span>
         <label id="lchar">source character <select class="sm" id="srcchar"></select></label>
       </div>
     </div>
   </main>
+  <aside id="infoside"><div id="info"></div></aside>
 </div>
 <script type="module">
 import * as THREE from 'three';
@@ -177,12 +182,26 @@ function layout() {
   scene.updateMatrixWorld(true);
 }
 
+function gateMark(it) {
+  if (!it.gate) return '';
+  return it.gate.passed ? ' <span class="good" title="passes the generator\'s quality gate">✓</span>' : ` <span class="bad" title="${it.gate.reasons.join('; ').replace(/"/g, "'")}">✗</span>`;
+}
+function genHtml(it) {
+  const g = it.gen, gt = it.gate;
+  let h = '';
+  if (gt) h += `<tr><td>generator gate</td><td class="${gt.passed ? 'good' : 'bad'}">${gt.passed ? 'passes' : 'fails'}${gt.reasons.length ? '<br><small>' + gt.reasons.join('<br>') + '</small>' : ''}</td></tr>`;
+  else if (g) h += `<tr><td>generator gate</td><td>no quality stored (older clip)</td></tr>`;
+  if (g && g.kind === 'generated') h += `<tr><td>generated with</td><td><small>seed ${g.seed} · guidance ${g.guidance} · ${g.mode}${g.znorm ? ' · cap ' + g.znorm : ' · no cap'} · smoothing ${g.smooth}<br>candidate ${g.tries_used} used${g.typed && g.typed !== g.prompt ? '<br>typed "' + g.typed + '"<br>used "' + g.prompt + '"' : ''}</small></td></tr>`;
+  return h;
+}
+
 function metricsHtml(it) {
   const m = it.metrics, f = (x, d = 3) => (+x).toFixed(d);
   const cls = (v, g, w) => v <= g ? 'good' : v <= w ? 'warn' : 'bad';
   const row = (a, b, c) => `<tr><td>${a}</td><td class="${c || ''}">${b}</td></tr>`;
   return `<h3>${it.name.replace(/^rt__/, '')} → ${it.target.replace(/^(objaverse|mixamo)_/, '$1 ').slice(0, 30)}</h3><table>
     ${row('target class', it.target_cls)}
+    ${genHtml(it)}
     ${row('frames / length', `${it.frames} @ ${it.fps} fps · ${it.duration_s}s`)}
     ${row('foot sliding', f(m.skate_mean) + ' m/s', cls(m.skate_mean, 0.02, 0.08))}
     ${row('reach failures', m.reach_fail_frames + ' frames', cls(m.reach_fail_frames, 3, 15))}
@@ -199,6 +218,49 @@ async function rootScaleOf(charKey) {
   try { const d = await (await fetch(`/data/characters/${charKey}/anims/anims.json`)).json(); return d._shared?.root_scale ?? 1; } catch { return 1; }
 }
 
+// ---- the real reference: the real Mixamo clip whose caption best matches the generated clip's prompt (/api/real_matches), measured like a generated one (/api/real_metrics)
+async function ensureReal(it) {
+  if (!it.refs) {
+    const d = await (await fetch('/api/real_matches?prompt=' + encodeURIComponent(it.gen?.prompt || '') + '&k=6')).json();
+    if (d.error) throw new Error(d.error);
+    it.refs = d.matches; it.refIdx = 0;
+  }
+  const r = it.refs[it.refIdx];
+  if (!r) throw new Error('no real clip found for this prompt: search for one in the panel');
+  if (!it.gm) { try { it.gm = await (await fetch('/api/gen_metrics?name=' + encodeURIComponent(it.gen_name) + '&prompt=' + encodeURIComponent(it.gen?.prompt || ''))).json(); } catch { it.gm = { error: 'request failed' }; } }
+  if (!r.metrics) { r.metrics = await (await fetch('/api/real_metrics?name=' + encodeURIComponent(r.name) + '&prompt=' + encodeURIComponent(it.gen?.prompt || ''))).json(); if (r.metrics.error) throw new Error(r.metrics.error); }
+  it.source_clip = r.name; it.source_clip_url = r.url; it.source_shared = true; it.source_model_url = '';
+}
+function realGenHtml(it) {
+  const r = it.refs[it.refIdx], rm = r.metrics, m = it.gm && !it.gm.error ? it.gm : null, q = m ? m.quality : it.gen?.quality, g = m ? m.gate : it.gate, flip = !!g?.needs_rotation;
+  const v = (x, u = '') => x === undefined || x === null ? '—' : x + u;
+  const row = (a, rv, gv, cls) => `<tr><td>${a}</td><td>${rv}</td><td class="${cls || ''}">${gv}</td></tr>`;
+  const turn = q && flip ? (q.pitch_range_deg >= 300 ? 'good' : 'bad') : '', land = q && flip ? (q.landing_up >= 0.8 ? 'good' : 'bad') : '', sp = q ? (q.spikes <= 1 ? 'good' : 'warn') : '';
+  let h = `<h3>real vs generated</h3><table><tr><td></td><td style="color:var(--src)"><b>real</b></td><td style="color:var(--tgt)"><b>generated</b></td></tr>
+    ${row('clip', r.name, 'seed ' + (it.gen?.seed ?? '?'))}
+    ${row('length', `${rm.duration_s} s`, `${m ? m.duration_s : it.duration_s} s`)}
+    ${row('body turns (hips pitch)', v(rm.quality.pitch_range_deg, '°'), v(q?.pitch_range_deg, '°'), turn)}
+    ${row('ends upright (1 = standing)', v(rm.quality.landing_up), v(q?.landing_up), land)}
+    ${row('rotation steps >60° (IK proxy)', v(rm.quality.spikes), v(q?.spikes), sp)}
+    ${row('largest step', v(rm.quality.max_step_deg, '°'), v(q?.max_step_deg, '°'))}</table>`;
+  if (!q) h += '<small>This clip has no stored quality numbers (an older clip); only the real side is measured.</small>';
+  else {
+    h += `<div style="margin-top:6px">gate on these numbers: <b class="${g.passed ? 'good' : 'bad'}">${g.passed ? 'passes' : 'fails'}</b>${g.reasons.length ? '<br><small>' + g.reasons.join('<br>') + '</small>' : ''}</div>`;
+    h += `<small>Both columns are measured the same way, from the skeleton of each clip (the generated clip's stored numbers can differ a little, and older clips have none). For comparison the real clip ${rm.gate?.passed ? 'passes' : 'fails'} the same gate${rm.gate?.reasons?.length ? ' (' + rm.gate.reasons.join('; ') + ')' : ''}. The gate's smoothness limit (at most 1 rotation step over 60°) is tighter than a real flip, so read the turn and the ending first.</small>`;
+  }
+  h += `<div style="margin-top:8px"><small>real reference (best matches by caption and clip name for the prompt "${(it.gen?.prompt || '').slice(0, 60)}")</small>
+    <select id="refsel">${it.refs.map((m, k) => `<option value="${k}"${k === it.refIdx ? ' selected' : ''}>${m.name} · ${m.duration_s}s · ${m.score}</option>`).join('')}</select>
+    <input id="refq" placeholder="or search another real clip by words, Enter" autocomplete="off"><small>${r.caption}</small></div>`;
+  return h;
+}
+$('info').addEventListener('change', e => { if (e.target.id === 'refsel') { shown[cur].refIdx = +e.target.value; select(cur, true); } });
+$('info').addEventListener('keydown', async e => {
+  if (e.target.id !== 'refq' || e.key !== 'Enter' || !e.target.value.trim()) return;
+  const d = await (await fetch('/api/real_matches?prompt=' + encodeURIComponent(e.target.value.trim()) + '&k=6')).json();
+  if (d.matches?.length) { shown[cur].refs = d.matches; shown[cur].refIdx = 0; select(cur, true); } else $('msg').textContent = 'no real clip matches those words';
+});
+$('fit').addEventListener('change', () => { fit = $('fit').checked; t = 0; });
+
 async function select(i, keep = false) {
   if (i < 0 || i >= shown.length) return;
   cur = i; const it = shown[i], my = ++token;
@@ -207,6 +269,7 @@ async function select(i, keep = false) {
   history.replaceState(null, '', '#' + it.target + '|' + it.name);
   $('msg').textContent = 'loading…'; $('msg').style.display = 'grid';
   try {
+    await ensureReal(it);
     const srcChar = it.source_shared ? $('srcchar').value : null;
     const srcModel = it.source_shared ? `/data/characters/${srcChar}/model.glb` : it.source_model_url;
     const rs = it.source_shared ? await rootScaleOf(srcChar) : 1;
@@ -217,12 +280,12 @@ async function select(i, keep = false) {
     sampleTrail(S.src, it.fps); sampleTrail(S.tgt, it.fps);
     t = 0; lastMid.set(NaN, 0, 0);
     $('lchar').style.display = it.source_shared ? '' : 'none';
-    $('lsrc').textContent = 'source: ' + it.source_clip + (it.source_shared ? ` · ${srcChar.replace('mixamo_', '')}` : '');
-    $('ltgt').textContent = 'retargeted: ' + it.target.replace(/^objaverse_/, '').slice(0, 14) + '…';
+    $('lsrc').textContent = 'REAL: ' + it.source_clip + (it.source_shared ? ` · ${srcChar.replace('mixamo_', '')}` : '');
+    $('ltgt').textContent = 'GENERATED: seed ' + (it.gen?.seed ?? '?') + ' · ' + it.target.replace(/^(objaverse|mixamo)_/, '').slice(0, 14);
     $('msg').style.display = 'none';
     layout();
     if (!keep) view('34');
-    $('info').innerHTML = metricsHtml(it);
+    $('info').innerHTML = realGenHtml(it) + '<details><summary>retarget metrics of the generated clip</summary>' + metricsHtml(it) + '</details>';
   } catch (e) { $('msg').textContent = 'failed to load: ' + e.message; $('msg').style.display = 'grid'; }
 }
 
@@ -244,10 +307,11 @@ function view(kind) {
 }
 
 function applyTime() {
-  for (const s of Object.values(S)) if (s.action) { s.action.time = Math.min(t, s.dur * 0.99999); s.mixer.update(0); }
+  const D = dur(); for (const s of Object.values(S)) if (s.action) { s.action.time = Math.min(fit && isFinite(D) ? t / D * s.dur : t, s.dur * 0.99999); s.mixer.update(0); }
   scene.updateMatrixWorld(true);
 }
-const dur = () => Math.min(showSrc ? (S.src.dur || Infinity) : Infinity, S.tgt.dur || Infinity);
+let fit = true;
+const dur = () => fit ? (Math.max(showSrc ? (S.src.dur || 0) : 0, S.tgt.dur || 0) || Infinity) : Math.min(showSrc ? (S.src.dur || Infinity) : Infinity, S.tgt.dur || Infinity);
 const fps = () => shown[cur]?.fps || 30;
 const setPlaying = p => { playing = p; $('bplay').textContent = p ? '⏸' : '▶'; };
 function stepFrame(d) { setPlaying(false); const D = dur(); if (!isFinite(D)) return; t = ((Math.round(t * fps()) + d) / fps() + D) % D; }
@@ -291,18 +355,19 @@ addEventListener('resize', resize); resize();
 
 // ------------------------------------------------------------------ ui
 function refilter() {
-  const q = $('q').value.trim().toLowerCase(), c = $('fcls').value, prev = shown[cur];
-  shown = items.filter(it => (!q || (it.target + ' ' + it.source_clip).toLowerCase().includes(q)) && (!c || it.target_cls === c));
+  const q = $('q').value.trim().toLowerCase(), c = $('fcls').value, g = $('fgate').value, prev = shown[cur];
+  shown = items.filter(it => (!q || (it.target + ' ' + it.gen_name).toLowerCase().includes(q)) && (!c || it.target_cls === c)
+    && (!g || (g === 'none' ? !it.gate : it.gate && (it.gate.passed ? 'pass' : 'fail') === g)));
   $('count').textContent = `${shown.length} / ${items.length} results`;
   $('list').innerHTML = shown.map((it, i) => {
     const m = it.metrics, bad = m.reach_fail_frames > 15 || m.skate_mean > 0.08 || m.penetration_max > 0.03;
-    return `<div class="item" data-i="${i}"><div class="a"><span class="n">${it.source_clip}</span><span class="m">${it.target_cls === 'biped' ? 'bi' : 'quad'}${bad ? ' <span class="warn">⚑</span>' : ''}</span></div>
+    return `<div class="item" data-i="${i}"><div class="a"><span class="n">${it.gen_name.replace('decoded:gen_', '')}</span><span class="m">${it.target_cls === 'biped' ? 'bi' : 'quad'}${bad ? ' <span class="warn">⚑</span>' : ''}${gateMark(it)}</span></div>
       <div class="t">→ ${it.target.replace(/^objaverse_/, '')}</div></div>`;
   }).join('');
   cur = prev ? shown.indexOf(prev) : -1;
   if (cur >= 0) document.querySelector(`.item[data-i="${cur}"]`)?.classList.add('sel');
 }
-$('q').addEventListener('input', refilter); $('fcls').addEventListener('input', refilter);
+$('q').addEventListener('input', refilter); $('fcls').addEventListener('input', refilter); $('fgate').addEventListener('input', refilter);
 $('list').addEventListener('click', e => { const el = e.target.closest('.item'); if (el) select(+el.dataset.i, true); });
 $('bplay').onclick = () => setPlaying(!playing);
 $('bprev').onclick = () => stepFrame(-1); $('bnext').onclick = () => stepFrame(1);
@@ -331,9 +396,9 @@ try {
   const hash = decodeURIComponent(location.hash.slice(1)).split('|');       // the generator page embeds this player with ?embed#target|clip: it needs only that clip, not the list of every clip (13 s to build)
   const one = location.search.includes('embed') && hash.length === 2 && hash[1];
   const d = await (await fetch(one ? `/api/retarget?target=${encodeURIComponent(hash[0])}&name=${encodeURIComponent(hash[1])}` : '/api/retargets')).json();
-  items = d.items; mixamo = d.mixamo;
+  items = d.items.filter(it => it.gen && it.gen.kind === 'generated').map(it => ({ ...it, gen_name: it.source_clip })); mixamo = d.mixamo;
   $('srcchar').innerHTML = mixamo.map(k => `<option value="${k}"${k === 'mixamo_Aciana' ? ' selected' : ''}>${k.replace('mixamo_', '')}</option>`).join('');
-  if (!items.length) $('msg').textContent = 'no retargeted clips yet — run scripts/rigging/retarget.py --source-clip <clip> --target <character>';
+  if (!items.length) $('msg').textContent = 'no generated clips yet — make some on the Generate page';
   else {
     refilter();
     const [tk, nm] = decodeURIComponent(location.hash.slice(1)).split('|');

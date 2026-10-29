@@ -1,3 +1,5 @@
+> **History:** the generator (`generate_motion.py`, the Generator page) and its tools were removed on 2026-10-28; the files are in `archive/motion_generate_2026-10-28/` and the commands below only run if they are copied back. The measurements stay valid for the data they used.
+
 # Caption and motion embeddings
 
 ![Caption and motion embedding pipeline: data, features, the two models and their outputs](embed_pipeline.svg)
@@ -474,6 +476,15 @@ The cause of the generated-flip roughness that the section above could not find.
   they are left as validated. The run result is a lead for the open "clips pile up on the duration floor" problem; not pursued.
 - **Not done / caveats:** judged on per-frame counts, not on video; one prompt wording and 12-24 seeds; the cap factor (1.0 or 0.9) was chosen from this small test, 0.9 gives fewer flip spikes but was not run on the held-out set; guidance 3 with the cap was only tried by rescaling (7.1 -> 3.6-5.8 at 13-20, less clear);
   seeds that landed on the back (4 of 22) are not fixed; the retargeter's own spikes on real flips (about 3.6) and the quadruped lift remain. Rescaled classifier-free guidance (`rescale`) was tried for walks and did not help; it was not tried for flips, but the latent norm is the more direct handle.
+
+### Cap inside the sampler (2026-10-28)
+
+`generate(step_cap=0.9)` / `--step-cap 0.9` (opt-in, plain mode, desktop runtime): the clean-latent estimate is capped at every denoising step (the `x0_fn` hook of `diffusion_test.sample`) to 0.9 x the mean |z| of the 40 nearest training captions, instead of rescaling the finished latent. Scripts: `scripts/generate/flip_sweep.py`, `step_cap_check.py`; results `data/analysis/flip_sweep.md`, `step_cap_check.md`.
+- **Flip sweep** (100 seeds per cell, one sample each, the production gate criteria: at most 1 rotation step over 60 degrees and none over 100, a turn of at least 300 degrees, an upright ending): good samples, production cap -> cap inside the sampler: "An object does a front flip." 6% -> 8%, "performs a front flip." 12% -> 22%, "performs a backflip." 15% -> 21%. The completed turns and upright endings rise (front flip 45 -> 53 and 47 -> 65 of 100; backflip 67 -> 68 and 44 -> 72) but the smooth share falls (52 -> 49, 51 -> 36 of 100). The Wilson intervals overlap for each prompt; pooled over the three prompts 33/300 -> 51/300.
+  No cap at all: 3%, 3%, 2%. Lower guidance does not help (guidance 1.5: 3%, 9%, 11%; 1.0: 1%, 3%, 4%: it ends upright more often but stops completing the turn) and rescaled guidance (0.7) does not either (6%, 12%, 13%).
+- **Candidate gate, production setting:** the chance of a good clip within 1 / 2 / 4 / 8 tries is 6 / 13 / 15 / 38% for the typed front flip, 12 / 21 / 31 / 54% for the rewritten one and 15 / 25 / 34 / 63% for the backflip (the "95% within 4" of the section below was measured before the landing criterion existed). Rewriting the prompt doubles the front-flip rate.
+- **Held-out side effects** (555 validation prompts, guidance 2, seed 0; spikes over a random 250): no cap R@1 11.0, R@5 33.5, R@10 47.4, cosine 0.656, spikes 0.35 per clip (8% of clips), duration 2.08 s; production cap 10.6 / 33.5 / 47.4 / 0.657 / 0.16 (7%) / 2.22 s (these reproduce the table of "`--znorm 0.9` on the held-out set"); cap inside the sampler 12.1 / 35.1 / 47.6 / 0.653 / 0.16 (5%) / 2.26 s. Nothing gets worse measurably; R@5 +1.6 points is about nine prompts, within what one seed can move.
+- **Caveats:** flips only for the gain; one wording each and 100 seeds; the criteria are the project's own gate, not a judgement of the video; the per-try pass rates are assumed independent when extrapolating beyond 8 tries (16 tries would give about 63 / 79 / 86% for the production setting); the option is off by default because the smooth share drops. Looking at the clips on a character was not repeated.
 
 ### Seed 1: lying, then a pop; and a candidate gate (2026-10-22)
 

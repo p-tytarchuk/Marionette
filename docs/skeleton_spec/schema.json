@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "skeleton-roles/1",
+  "title": "Role-labelled 2D skeleton (skeleton-roles/1). Structure only: the cross-reference rules (one root, chains, one trunk, ...) are checked by scripts/rigging/skeleton_spec.py validate.",
+  "type": "object",
+  "required": ["spec", "id", "parts", "joints"],
+  "additionalProperties": false,
+  "properties": {
+    "spec": {"const": "skeleton-roles/1"},
+    "id": {"type": "string", "minLength": 1},
+    "view": {
+      "type": "object",
+      "description": "how the character is drawn; never used to count anything",
+      "additionalProperties": false,
+      "properties": {
+        "yaw_deg": {"type": ["number", "null"], "description": "0 = profile, 90 = front or back"},
+        "facing": {"enum": ["left", "right", "front", "back", "unknown"]}
+      }
+    },
+    "meta": {"type": "object", "description": "free-form provenance (the synthetic generator writes variant, seed and body_seed); never read by the validator"},
+    "declared_class": {"enum": ["biped", "quadruped", "limbless", "winged", "other", null], "description": "optional claim of the generator; the class derived from the parts wins"},
+    "parts": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "kind"],
+        "additionalProperties": false,
+        "properties": {
+          "id": {"type": "string", "minLength": 1},
+          "kind": {"enum": ["trunk", "head", "tail", "leg", "arm", "wing", "fin", "extra"]},
+          "side": {"enum": ["L", "R", "C", null], "description": "the body's own side, not the screen side; required for leg, arm, wing; L, R or C for fin"},
+          "girdle": {"enum": ["pelvic", "pectoral", null], "description": "leg, arm, wing: attached at the hips (pelvic) or the shoulders (pectoral); null for 6 or more legs"},
+          "layer": {"enum": ["front", "behind", null], "description": "drawing order against the trunk (far-side limbs are behind)"},
+          "visible": {"type": "boolean", "default": true, "description": "false = the part exists on the body but has no artwork in this drawing (far legs of a profile); it still counts"},
+          "secondary": {"type": "boolean", "description": "follow-through motion (tail, ears, hair, cloth); defaults: tail and extra true, others false"}
+        }
+      }
+    },
+    "joints": {
+      "type": "array",
+      "minItems": 2,
+      "items": {
+        "type": "object",
+        "required": ["id", "parent", "pos", "part"],
+        "additionalProperties": false,
+        "properties": {
+          "id": {"type": "string", "minLength": 1},
+          "parent": {"type": ["string", "null"], "description": "null for the single root, which belongs to the trunk"},
+          "pos": {"type": "array", "items": {"type": "number"}, "minItems": 2, "maxItems": 2, "description": "[x, y] in the rest pose, y up, any scale"},
+          "part": {"type": "string", "description": "the id of the part this joint belongs to (every joint belongs to exactly one)"},
+          "role": {"type": "string", "description": "optional name inside the part: hip, knee, ankle, toe; shoulder, elbow, wrist; ..."},
+          "limits": {"type": "array", "items": {"type": "number"}, "minItems": 2, "maxItems": 2, "description": "optional rotation limits in degrees [min, max]"}
+        }
+      }
+    }
+  }
+}

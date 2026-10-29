@@ -1,0 +1,238 @@
+{
+ "spec": "skeleton-roles/1",
+ "id": "winged_bird",
+ "view": {
+  "yaw_deg": 0,
+  "facing": "right"
+ },
+ "parts": [
+  {
+   "id": "trunk",
+   "kind": "trunk"
+  },
+  {
+   "id": "head",
+   "kind": "head"
+  },
+  {
+   "id": "tail",
+   "kind": "tail",
+   "secondary": true
+  },
+  {
+   "id": "wing_L",
+   "kind": "wing",
+   "side": "L",
+   "girdle": "pectoral",
+   "layer": "front",
+   "visible": true
+  },
+  {
+   "id": "wing_R",
+   "kind": "wing",
+   "side": "R",
+   "girdle": "pectoral",
+   "layer": "behind",
+   "visible": true
+  },
+  {
+   "id": "leg_L",
+   "kind": "leg",
+   "side": "L",
+   "girdle": "pelvic",
+   "layer": "front",
+   "visible": true
+  },
+  {
+   "id": "leg_R",
+   "kind": "leg",
+   "side": "R",
+   "girdle": "pelvic",
+   "layer": "behind",
+   "visible": true
+  }
+ ],
+ "joints": [
+  {
+   "id": "trunk1",
+   "parent": null,
+   "pos": [
+    0,
+    0.3
+   ],
+   "part": "trunk"
+  },
+  {
+   "id": "trunk2",
+   "parent": "trunk1",
+   "pos": [
+    0.1,
+    0.42
+   ],
+   "part": "trunk"
+  },
+  {
+   "id": "head1",
+   "parent": "trunk2",
+   "pos": [
+    0.16,
+    0.5
+   ],
+   "part": "head"
+  },
+  {
+   "id": "head2",
+   "parent": "head1",
+   "pos": [
+    0.22,
+    0.52
+   ],
+   "part": "head"
+  },
+  {
+   "id": "tail1",
+   "parent": "trunk1",
+   "pos": [
+    -0.08,
+    0.24
+   ],
+   "part": "tail"
+  },
+  {
+   "id": "tail2",
+   "parent": "tail1",
+   "pos": [
+    -0.2,
+    0.18
+   ],
+   "part": "tail"
+  },
+  {
+   "id": "wing_L1",
+   "parent": "trunk2",
+   "pos": [
+    0.08,
+    0.5
+   ],
+   "part": "wing_L"
+  },
+  {
+   "id": "wing_L2",
+   "parent": "wing_L1",
+   "pos": [
+    0.0,
+    0.62
+   ],
+   "part": "wing_L"
+  },
+  {
+   "id": "wing_L3",
+   "parent": "wing_L2",
+   "pos": [
+    -0.12,
+    0.7
+   ],
+   "part": "wing_L"
+  },
+  {
+   "id": "wing_L4",
+   "parent": "wing_L3",
+   "pos": [
+    -0.25,
+    0.72
+   ],
+   "part": "wing_L"
+  },
+  {
+   "id": "wing_R1",
+   "parent": "trunk2",
+   "pos": [
+    0.07,
+    0.5
+   ],
+   "part": "wing_R"
+  },
+  {
+   "id": "wing_R2",
+   "parent": "wing_R1",
+   "pos": [
+    -0.01,
+    0.62
+   ],
+   "part": "wing_R"
+  },
+  {
+   "id": "wing_R3",
+   "parent": "wing_R2",
+   "pos": [
+    -0.13,
+    0.68
+   ],
+   "part": "wing_R"
+  },
+  {
+   "id": "wing_R4",
+   "parent": "wing_R3",
+   "pos": [
+    -0.26,
+    0.69
+   ],
+   "part": "wing_R"
+  },
+  {
+   "id": "leg_L1",
+   "parent": "trunk1",
+   "pos": [
+    0.01,
+    0.18
+   ],
+   "part": "leg_L"
+  },
+  {
+   "id": "leg_L2",
+   "parent": "leg_L1",
+   "pos": [
+    0.03,
+    0.08
+   ],
+   "part": "leg_L"
+  },
+  {
+   "id": "leg_L3",
+   "parent": "leg_L2",
+   "pos": [
+    0.05,
+    0.0
+   ],
+   "part": "leg_L"
+  },
+  {
+   "id": "leg_R1",
+   "parent": "trunk1",
+   "pos": [
+    -0.01,
+    0.18
+   ],
+   "part": "leg_R"
+  },
+  {
+   "id": "leg_R2",
+   "parent": "leg_R1",
+   "pos": [
+    0.01,
+    0.08
+   ],
+   "part": "leg_R"
+  },
+  {
+   "id": "leg_R3",
+   "parent": "leg_R2",
+   "pos": [
+    0.03,
+    0.0
+   ],
+   "part": "leg_R"
+  }
+ ],
+ "declared_class": "winged"
+}

@@ -1,0 +1,262 @@
+{
+ "spec": "skeleton-roles/1",
+ "id": "quadruped_fox",
+ "view": {
+  "yaw_deg": 0,
+  "facing": "right"
+ },
+ "parts": [
+  {
+   "id": "trunk",
+   "kind": "trunk"
+  },
+  {
+   "id": "head",
+   "kind": "head"
+  },
+  {
+   "id": "tail",
+   "kind": "tail",
+   "secondary": true
+  },
+  {
+   "id": "leg_hind_L",
+   "kind": "leg",
+   "side": "L",
+   "girdle": "pelvic",
+   "layer": "front",
+   "visible": true
+  },
+  {
+   "id": "leg_hind_R",
+   "kind": "leg",
+   "side": "R",
+   "girdle": "pelvic",
+   "layer": "behind",
+   "visible": true
+  },
+  {
+   "id": "leg_fore_L",
+   "kind": "leg",
+   "side": "L",
+   "girdle": "pectoral",
+   "layer": "front",
+   "visible": true
+  },
+  {
+   "id": "leg_fore_R",
+   "kind": "leg",
+   "side": "R",
+   "girdle": "pectoral",
+   "layer": "behind",
+   "visible": true
+  },
+  {
+   "id": "ear_L",
+   "kind": "extra",
+   "secondary": true,
+   "layer": "front"
+  }
+ ],
+ "joints": [
+  {
+   "id": "trunk1",
+   "parent": null,
+   "pos": [
+    0,
+    0.3
+   ],
+   "part": "trunk"
+  },
+  {
+   "id": "trunk2",
+   "parent": "trunk1",
+   "pos": [
+    0.22,
+    0.32
+   ],
+   "part": "trunk"
+  },
+  {
+   "id": "trunk3",
+   "parent": "trunk2",
+   "pos": [
+    0.44,
+    0.34
+   ],
+   "part": "trunk"
+  },
+  {
+   "id": "trunk4",
+   "parent": "trunk3",
+   "pos": [
+    0.6,
+    0.36
+   ],
+   "part": "trunk"
+  },
+  {
+   "id": "head1",
+   "parent": "trunk4",
+   "pos": [
+    0.7,
+    0.44
+   ],
+   "part": "head"
+  },
+  {
+   "id": "head2",
+   "parent": "head1",
+   "pos": [
+    0.82,
+    0.46
+   ],
+   "part": "head"
+  },
+  {
+   "id": "tail1",
+   "parent": "trunk1",
+   "pos": [
+    -0.15,
+    0.36
+   ],
+   "part": "tail"
+  },
+  {
+   "id": "tail2",
+   "parent": "tail1",
+   "pos": [
+    -0.3,
+    0.42
+   ],
+   "part": "tail"
+  },
+  {
+   "id": "tail3",
+   "parent": "tail2",
+   "pos": [
+    -0.42,
+    0.4
+   ],
+   "part": "tail"
+  },
+  {
+   "id": "leg_hind_L1",
+   "parent": "trunk1",
+   "pos": [
+    0.0,
+    0.18
+   ],
+   "part": "leg_hind_L"
+  },
+  {
+   "id": "leg_hind_L2",
+   "parent": "leg_hind_L1",
+   "pos": [
+    0.03,
+    0.09
+   ],
+   "part": "leg_hind_L"
+  },
+  {
+   "id": "leg_hind_L3",
+   "parent": "leg_hind_L2",
+   "pos": [
+    0.05,
+    0.0
+   ],
+   "part": "leg_hind_L"
+  },
+  {
+   "id": "leg_hind_R1",
+   "parent": "trunk1",
+   "pos": [
+    -0.03,
+    0.18
+   ],
+   "part": "leg_hind_R"
+  },
+  {
+   "id": "leg_hind_R2",
+   "parent": "leg_hind_R1",
+   "pos": [
+    0.0,
+    0.09
+   ],
+   "part": "leg_hind_R"
+  },
+  {
+   "id": "leg_hind_R3",
+   "parent": "leg_hind_R2",
+   "pos": [
+    0.02,
+    0.0
+   ],
+   "part": "leg_hind_R"
+  },
+  {
+   "id": "leg_fore_L1",
+   "parent": "trunk4",
+   "pos": [
+    0.6,
+    0.2
+   ],
+   "part": "leg_fore_L"
+  },
+  {
+   "id": "leg_fore_L2",
+   "parent": "leg_fore_L1",
+   "pos": [
+    0.62,
+    0.1
+   ],
+   "part": "leg_fore_L"
+  },
+  {
+   "id": "leg_fore_L3",
+   "parent": "leg_fore_L2",
+   "pos": [
+    0.64,
+    0.0
+   ],
+   "part": "leg_fore_L"
+  },
+  {
+   "id": "leg_fore_R1",
+   "parent": "trunk4",
+   "pos": [
+    0.57,
+    0.2
+   ],
+   "part": "leg_fore_R"
+  },
+  {
+   "id": "leg_fore_R2",
+   "parent": "leg_fore_R1",
+   "pos": [
+    0.59,
+    0.1
+   ],
+   "part": "leg_fore_R"
+  },
+  {
+   "id": "leg_fore_R3",
+   "parent": "leg_fore_R2",
+   "pos": [
+    0.61,
+    0.0
+   ],
+   "part": "leg_fore_R"
+  },
+  {
+   "id": "ear_L1",
+   "parent": "head1",
+   "pos": [
+    0.72,
+    0.52
+   ],
+   "part": "ear_L"
+  }
+ ],
+ "declared_class": "quadruped"
+}

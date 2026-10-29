@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Marionette</title>
+<link rel="icon" href="data:,">
+<style>
+  :root { --bg:#14161a; --panel:#1b1e24; --line:#2a2e36; --text:#d8dce4; --dim:#8a92a0; --accent:#6ea8ff; --warn:#e8b04a; --bad:#ef6b6b; --good:#5fcf8a; --tgt:#ff9f5a; }
+  * { box-sizing:border-box; }
+  html,body { margin:0; background:var(--bg); color:var(--text); font:14px/1.5 system-ui,-apple-system,sans-serif; }
+  a { color:var(--accent); }
+  .wrap { max-width:1080px; margin:0 auto; padding:32px 20px 56px; }
+  header { display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-bottom:6px; }
+  h1 { margin:0; font-size:28px; font-weight:650; letter-spacing:.2px; }
+  .sub { color:var(--dim); margin:4px 0 0; max-width:640px; }
+  #status { font-size:12px; color:var(--dim); border:1px solid var(--line); border-radius:999px; padding:3px 11px; white-space:nowrap; }
+  #status.ok::before, #status.bad::before { content:""; display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:7px; background:var(--good); }
+  #status.bad::before { background:var(--bad); }
+  h2 { font-size:12px; text-transform:uppercase; letter-spacing:1.2px; color:var(--dim); margin:34px 0 12px; font-weight:600; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(320px, 1fr)); gap:14px; }
+  .card { position:relative; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:16px 16px 14px; display:flex; flex-direction:column; gap:10px; transition:border-color .15s, transform .15s; }
+  .card:hover { border-color:#3b4252; }
+  .card .top { display:flex; gap:12px; align-items:flex-start; }
+  .ico { flex:0 0 44px; height:44px; border-radius:10px; display:grid; place-items:center; background:#222a38; color:var(--accent); }
+  .ico svg { width:24px; height:24px; stroke:currentColor; fill:none; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
+  .card h3 { margin:0; font-size:16px; font-weight:600; }
+  .card p { margin:2px 0 0; color:var(--dim); font-size:13px; }
+  .tag { display:inline-block; font-size:11px; color:var(--dim); border:1px solid var(--line); border-radius:999px; padding:0 8px; margin-top:6px; }
+  .actions { display:flex; gap:8px; margin-top:auto; align-items:center; flex-wrap:wrap; }
+  .btn { background:var(--accent); color:#0c1220; border:0; border-radius:8px; padding:7px 14px; font:inherit; font-weight:600; text-decoration:none; cursor:pointer; }
+  .btn:hover { filter:brightness(1.1); }
+  .btn.alt { background:transparent; color:var(--text); border:1px solid var(--line); font-weight:500; }
+  .btn.alt:hover { border-color:var(--accent); color:var(--accent); filter:none; }
+  .info { position:absolute; top:12px; right:12px; width:28px; height:28px; border-radius:50%; border:1px solid var(--line); background:transparent; color:var(--dim); cursor:pointer; font:600 14px/1 Georgia,serif; display:grid; place-items:center; }
+  .info:hover, .info:focus-visible { color:var(--accent); border-color:var(--accent); outline:none; }
+  .docs { display:grid; grid-template-columns:repeat(auto-fill, minmax(320px, 1fr)); gap:8px 24px; }
+  .docs a { text-decoration:none; padding:6px 0; border-bottom:1px solid var(--line); display:block; }
+  .docs a:hover { color:#fff; }
+  .docs span { color:var(--dim); display:block; font-size:12px; }
+  /* manual drawer */
+  #veil { position:fixed; inset:0; background:rgba(8,9,12,.62); opacity:0; pointer-events:none; transition:opacity .18s; z-index:10; }
+  #drawer { position:fixed; top:0; right:0; bottom:0; width:min(560px, 100%); background:var(--panel); border-left:1px solid var(--line); transform:translateX(102%); transition:transform .2s; z-index:11; display:flex; flex-direction:column; }
+  body.open #veil { opacity:1; pointer-events:auto; } body.open #drawer { transform:none; }
+  #dhead { display:flex; align-items:center; gap:10px; padding:16px 18px; border-bottom:1px solid var(--line); }
+  #dhead h3 { margin:0; font-size:17px; flex:1; }
+  #close { background:transparent; border:1px solid var(--line); color:var(--dim); border-radius:8px; width:30px; height:30px; cursor:pointer; font-size:16px; }
+  #close:hover { color:var(--text); border-color:var(--accent); }
+  #dbody { overflow:auto; padding:6px 18px 28px; }
+  #dbody h4 { margin:20px 0 6px; font-size:12px; text-transform:uppercase; letter-spacing:1px; color:var(--accent); font-weight:600; }
+  #dbody p, #dbody li { color:#c4c9d4; font-size:13.5px; }
+  #dbody ol, #dbody ul { padding-left:20px; margin:4px 0; } #dbody li { margin:3px 0; }
+  #dbody table { border-collapse:collapse; width:100%; margin:4px 0; }
+  #dbody td { padding:4px 8px 4px 0; vertical-align:top; border-bottom:1px solid #20242b; font-size:13px; }
+  #dbody td:first-child { white-space:nowrap; color:var(--text); }
+  kbd { font:12px ui-monospace,Menlo,monospace; background:#242933; border:1px solid var(--line); border-bottom-width:2px; border-radius:4px; padding:0 5px; }
+  code { font:12px ui-monospace,Menlo,monospace; background:#20242b; padding:1px 5px; border-radius:4px; }
+  .note { border-left:3px solid var(--warn); background:#2a2517; padding:6px 10px; border-radius:0 6px 6px 0; color:#d9cfae; font-size:13px; margin:8px 0; }
+  #dbody .actions { margin-top:18px; }
+  .say { color:var(--dim); font-size:12px; }
+  @media (prefers-reduced-motion: reduce) { * { transition:none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Marionette</h1>
+      <p class="sub">Text to animated characters: browse the dataset, search the Lottie corpus. Click the <b>i</b> on any card for its manual.</p>
+    </div>
+    <span id="status">checking server…</span>
+  </header>
+
+  <h2>Viewers</h2>
+  <div class="grid" id="viewers"></div>
+
+  <h2>Documentation <span class="say" style="text-transform:none;letter-spacing:0">(plain text, opens in the browser)</span></h2>
+  <div class="docs" id="docs"></div>
+</div>
+
+<div id="veil"></div>
+<aside id="drawer" role="dialog" aria-modal="true" aria-labelledby="dtitle" aria-hidden="true">
+  <div id="dhead"><h3 id="dtitle"></h3><button id="close" aria-label="Close manual">✕</button></div>
+  <div id="dbody"></div>
+</aside>
+
+<script>
+const ICONS = {
+  person: '<svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="2.4"/><path d="M12 8v7M12 10l-4 3M12 10l4 3M12 15l-3 6M12 15l3 6"/></svg>',
+  compare: '<svg viewBox="0 0 24 24"><circle cx="6.5" cy="6" r="1.8"/><path d="M6.5 8v5M6.5 13l-2 4M6.5 13l2 4M6.5 9.5l-2 2M6.5 9.5l2 2"/><path d="M12 6h1M12 18h1M12 12h1"/><circle cx="17.5" cy="6" r="1.8"/><path d="M17.5 8v5M17.5 13l-3 4M17.5 13l3 4M17.5 10l-3 1M17.5 10l3 -1"/></svg>',
+  spark: '<svg viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z"/></svg>',
+  rig: '<svg viewBox="0 0 24 24"><circle cx="12" cy="4.5" r="1.8"/><circle cx="12" cy="11" r="1.5"/><circle cx="7" cy="12" r="1.5"/><circle cx="17" cy="12" r="1.5"/><circle cx="9" cy="20" r="1.5"/><circle cx="15" cy="20" r="1.5"/><path d="M12 6.3v3.2M10.7 11.6L8.4 12M13.3 11.6l2.3.4M12 12.5l-2.6 6M12 12.5l2.6 6"/></svg>',
+  film: '<svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M9 6v12M15 6v12M3 10h3M3 14h3M18 10h3M18 14h3"/></svg>',
+};
+
+const PAGES = {
+  browser: {
+    title: 'Character browser', icon: 'person', href: '/viewer/', group: 'viewers',
+    blurb: 'Look at every character of every class (biped, quadruped, winged, limbless, other) and play its original animation clips.',
+    tag: '3,932 characters',
+    manual: `
+      <h4>What it is</h4>
+      <p>A 3D viewer for the character dataset: the 3,570 normalised characters of <code>data/characters</code> (biped and quadruped, after scale, axis and ground normalisation) and the 362 characters of the other classes (winged, limbless, other), which were never normalised and are shown as they are, from their source files. Only the <b>original animations</b> of the dataset are listed; retargeted and generated clips are not.</p>
+      <h4>How to use</h4>
+      <ol>
+        <li>Pick a character in the left list. Narrow it with the search box (id), the class filter (biped / quadruped / winged / limbless / other), the source filter (mixamo / objaverse), <i>flagged</i> (characters the normalisation flagged, see <code>data/normalize_report.csv</code>) and <i>has clips</i>.</li>
+        <li>The info panel shows the character's height, size, triangle and joint counts and file size. Characters of the other classes show their original size and orientation (flag <i>not_normalised</i>).</li>
+        <li>For those characters the original animation (a motion file of the export) is drawn as a moving yellow skeleton, because no converted clip exists for them yet and the mesh itself stays in its rest pose. The file's skeleton is moved onto the mesh by a rotation, scale and shift fitted on the rest pose, so it sits on the mesh at rest; it then follows the clip, including its root motion (a hover or a jump lifts it away from the still mesh). The few clips where the fit is not exact (about 1 in 10) are drawn beside the mesh instead.</li>
+        <li>Pick a clip in the clip list (it has its own filter box). It plays at once if <i>autoplay</i> is ticked; drag the slider to scrub.</li>
+      </ol>
+      <h4>Controls</h4>
+      <table>
+        <tr><td>drag / wheel / right-drag</td><td>orbit / zoom / pan</td></tr>
+        <tr><td><kbd>↑</kbd> <kbd>↓</kbd> or <kbd>j</kbd> <kbd>k</kbd></td><td>previous / next character</td></tr>
+        <tr><td><kbd>←</kbd> <kbd>→</kbd> or <kbd>,</kbd> <kbd>.</kbd></td><td>previous / next clip</td></tr>
+        <tr><td><kbd>space</kbd></td><td>play / pause</td></tr>
+        <tr><td><kbd>s</kbd> <kbd>w</kbd> <kbd>g</kbd> <kbd>f</kbd> <kbd>r</kbd></td><td>skeleton, wireframe, grid, follow the root, reset the view (buttons at the bottom do the same, plus Mesh on / off)</td></tr>
+        <tr><td>speed, loop, follow root</td><td>speed 0.25 to 2; loop; keep the camera on the character as the root travels</td></tr>
+      </table>
+      <h4>Good to know</h4>
+      <ul>
+        <li>Mixamo characters share one set of converted clips; Objaverse characters mostly have a single clip.</li>
+        <li>The pages load three.js from a CDN, so the browser needs internet access.</li>
+        <li>Related: <code>docs/DATASET.md</code> (what the data is and its gaps).</li>
+      </ul>`,
+  },
+  tokens: {
+    title: 'Lottie joint tokens', icon: 'rig', href: '/viewer/lottie_tokens.html', group: 'viewers',
+    blurb: 'See how a 2D animation becomes the joint tokens the motion model reads.',
+    tag: 'samples + full dataset',
+    manual: `
+      <h4>What it is</h4>
+      <p>A preview of <code>scripts/lottie2d/lottie_tokens.py</code>, which turns a Lottie animation into the same kind of joint tokens as the 3D clips so one text-to-motion model can read both. Every layer of the animation is a joint at its pivot (the point it rotates around); the code follows the pivots through parent links, scale, rotation and nested precomps. This page shows that result next to the animation itself, before the full run over the corpus.</p>
+      <h4>How to use</h4>
+      <ol>
+        <li>Pick an animation on the left. The top drop-down switches between 46 pre-computed samples and the <b>full dataset</b>: all Qwen-relevant animations (about 60,000), each read out of the corpus when you click it (under a second). Filter by tokens / no tokens, two-leg / four-leg, or search the caption.</li>
+        <li>Left view: the animation as lottie-web draws it, with the computed joints on top (red = kept as tokens, blue = dropped because they never move). Right view: the same joints and parent links alone.</li>
+        <li>Check that red joints sit on limbs and move with them. Click a joint (in either view, in the list, or the chart) to see its four token channels over the 128-frame timeline: height, distance from the centroid, vertical speed, horizontal speed.</li>
+      </ol>
+      <h4>Controls</h4>
+      <table>
+        <tr><td><kbd>space</kbd></td><td>play / pause</td></tr>
+        <tr><td><kbd>↑</kbd> <kbd>↓</kbd> (<kbd>j</kbd> <kbd>k</kbd>)</td><td>previous / next animation</td></tr>
+        <tr><td>checkboxes</td><td>draw the dropped joints, motion trails, joint names, hide the overlay</td></tr>
+      </table>
+      <h4>Good to know</h4>
+      <ul>
+        <li>Animations marked <b>no tokens</b> move inside shape groups or morphing paths, not layer transforms, so no joint moves yet (about 15% of the sample). They are shown on purpose.</li>
+        <li>Joints that never move, and are not an ancestor of one that does, are dropped; at most 96 are kept.</li>
+        <li>Lengths are divided by the body size (largest extent of the joints in the first frame), so tokens do not depend on the canvas size.</li>
+        <li>Not handled: time remapping, 3D layers, expressions. The samples are written by <code>python scripts/lottie2d/lottie_tokens.py demo</code> into <code>data/lottie_tokens_demo</code>.</li>
+      </ul>`,
+  },
+  rate: {
+    title: 'Rate', icon: 'film', href: '/viewer/rate.html', group: 'viewers',
+    blurb: 'Human evaluation: score characters and motions by keyboard, blind to the system.',
+    tag: 'eval/human_eval.md',
+    manual: `
+      <h4>What it is</h4>
+      <p>The rating tool of the human evaluation (<code>eval/human_eval.md</code>). It shows one prompt and the output (pictures or video) and collects the scores of the rubric (<code>eval/shape/rubric.md</code>, <code>eval/motion/rubric.md</code>), or a left / right preference in the pairwise mode. You never see which system made an item, whether it is a control, or what the model judge said.</p>
+      <h4>How to use</h4>
+      <ol>
+        <li>Open the page, pick a rating set (a folder under <code>data/eval/</code> holding <code>set.json</code> and <code>items.jsonl</code>) and type your rater name. To try it: <code>python scripts/tools/make_demo_rating_set.py</code> writes two demo sets.</li>
+        <li>Keys: <b>1</b> to <b>5</b> score the highlighted axis and move to the next; <b>0</b> or <b>n</b> marks not applicable; <b>Backspace</b> goes back an axis; <b>Enter</b> saves and shows the next item; <b>x</b> means can't judge; <b>a</b> shows the anchor examples for the axis; <b>c</b> writes a comment; <b>[</b> and <b>]</b> move between items; <b>space</b> plays or pauses video. In the pairwise mode: <b>1</b> left, <b>2</b> right, <b>3</b> tie.</li>
+        <li>Every save appends one line to the set's <code>human.jsonl</code> and nothing is ever rewritten. Going back to an item and saving again adds a new row with a higher revision; the earlier one stays. Closing the page loses nothing: opening the set again continues at the first item you have not rated.</li>
+      </ol>
+      <h4>Good to know</h4>
+      <ul>
+        <li>The order of the items is random but fixed by the seed in <code>set.json</code>, so every rater sees the same order. Axes that do not apply to an item are dimmed and stored as null.</li>
+        <li>Rate in sessions of about 50 items; the anchors are there to keep the scale the same from the first item to the last.</li>
+        <li>Only <code>data/eval/</code> can be read or written through this page; a set whose media file is missing is refused when it is opened.</li>
+      </ul>`,
+  },
+  motion_classes: {
+    title: 'Motion classes', icon: 'rig', href: '/viewer/motion_classes.html', group: 'viewers',
+    blurb: 'Clips per body class (biped, quadruped, winged, limbless) and movement mode: what motion data each class has.',
+    tag: 'scripts/motion/motion_coverage.py',
+    manual: `
+      <h4>What it is</h4>
+      <p>The starting point of the motion work. The 12,672 3D clips of the export are sorted into the four classes of the skeleton spec (biped, quadruped, winged, limbless) plus <i>other</i>, with how many can be used now, how many hours of motion they hold and which movements their captions describe. A second table gives the tokenised Lottie clips by the body plan Qwen found (2-leg or 4-leg only).</p>
+      <h4>How to use</h4>
+      <ol>
+        <li>Read the first table: <i>usable now</i> is red when a class has no clip a character can play yet (winged, limbless and other: mostly because their characters were never normalised).</li>
+        <li>The movement table colours each cell by its share of the class; <b>·</b> means no caption mentions it.</li>
+        <li>Click a class: the panel on the right lists why its clips are unusable and every movement mode with its count. Click a mode to read example captions.</li>
+      </ol>
+      <h4>Good to know</h4>
+      <ul>
+        <li>A clip counts for a mode when its caption mentions the word (keyword rules), so the counts are mentions, not verified labels; one clip can count for several modes.</li>
+        <li>Marine bodies are counted as limbless, insectoid and rigid ones as other. The numbers come from <code>data/inventory/clips.csv</code>; the page needs no conda env.</li>
+      </ul>`,
+  },
+  skeletons: {
+    title: 'Skeletons', icon: 'rig', href: '/viewer/skeletons.html', group: 'viewers',
+    blurb: 'Real and synthetic skeletons side by side, at any yaw, with roles, class and movement modes.',
+    tag: 'docs/SKELETON_SPEC.md',
+    manual: `
+      <h4>What it is</h4>
+      <p>The skeletons of the real data (4,470 from the 3D manifest, AnyTop's 70 creatures, the Anymate rigs, 557 Lottie rigs) next to the 2,000 synthetic ones from <code>scripts/rigging/skeleton_synth.py</code>, drawn in 2D. It is for judging whether the synthetic skeletons look like real ones and for seeing what the role-labelled spec (<code>docs/SKELETON_SPEC.md</code>) derives from them.</p>
+      <h4>How to use</h4>
+      <ol>
+        <li>Pick a class: both columns show that class, the real one on the left, the synthetic one on the right. The drop-downs narrow each side to one data source or one body variant; <i>Reshuffle</i> draws a new sample of 12.</li>
+        <li>The yaw slider turns every skeleton about its vertical axis (0° is the profile, 90° the front or back) and redraws it; limbs on the far side of the body are drawn fainter. Lottie rigs are already 2D, so the yaw does not change them.</li>
+        <li>Click a skeleton: the large drawing, its role colours, the class derived from its parts, its carriers (legs, arms, wings, fins, tail) and the movement modes it supports (native, stylised, unsupported, with the reason).</li>
+      </ol>
+      <h4>Good to know</h4>
+      <ul>
+        <li>Role labels exist for every synthetic skeleton (by construction) and for the Anymate predicted rigs (from <code>anymate_roles.py</code>). The other real skeletons have none: their class is the dataset's own label, so they are drawn in plain grey and show no modes.</li>
+        <li>The data come from <code>data/analysis/skeleton_classes/</code> (<code>python scripts/rigging/skeleton_classes.py build</code>, <code>lottie-build</code>) and <code>data/synthetic/skeletons/</code> (<code>python scripts/rigging/skeleton_synth.py write</code>); the page says so when a file is missing. It needs the conda env Mario.</li>
+      </ul>`,
+  },
+  labels: {
+    title: 'Qwen labels', icon: 'person', href: '/viewer/vlm_table.html', group: 'viewers',
+    blurb: 'Every animation Qwen looked at, with its label, captions and the animation playing.',
+    tag: 'LottieAnimation-660K',
+    manual: `
+      <h4>What it is</h4>
+      <p>The table written by the two-stage Qwen3-VL labelling (<code>scripts/lottie2d/vlm_tables.py</code> on the GPU server): for each animation that passed the person/animal word filter, whether it shows a whole living 2- or 4-legged character (<b>relevant</b>), its subject, body plan, whether the full body is visible, whether it is a UI icon, and Qwen's own caption next to the dataset's caption. It reads <code>data/vlm/animation/shard-*.jsonl.zst</code> (copy them from the server, see the README). This page replaces the Qt viewer of the server, which stays there.</p>
+      <h4>How to use</h4>
+      <ol>
+        <li>The first start reads all 68 label shards in the background (about a minute); the page shows the progress.</li>
+        <li>Filter by <i>relevant</i> and <i>body plan</i>, or type words (all must occur in the id, either caption or the tags). Click a column title to sort; page with the buttons below the table.</li>
+        <li>Click a row or use the arrow keys: the animation plays on the right (read from the corpus, 0.2 to 0.7 s) next to the label, both captions, the tags and the animation's size, frame rate and layer count.</li>
+      </ol>
+      <h4>Good to know</h4>
+      <ul>
+        <li>Only the rows Qwen processed are listed (142,412 of 672,223); the other rows had no person or animal word and carry no label.</li>
+        <li>Body plan <i>other</i> means Qwen saw neither two nor four legs. Rows with <code>relevant</code> but not <code>full_body</code> can exist; the label is Qwen's judgement, not a measurement.</li>
+        <li>For a window of the raw dataset without labels use <b>Lottie dataset, raw</b>.</li>
+      </ul>`,
+  },
+  raw: {
+    title: 'Lottie dataset, raw', icon: 'film', href: '/viewer/lottie_raw.html', group: 'viewers',
+    blurb: 'Browse the corpus itself: pick a shard and a window of rows. Animation and SVG sets.',
+    tag: 'no labels needed',
+    manual: `
+      <h4>What it is</h4>
+      <p>A direct view of the two datasets in <code>../Datasets</code>: LottieAnimation-660K (68 metadata shards) and LottieSVG-10M (100). It needs nothing but the dataset, so it works for any row, labelled or not. It replaces the <code>--raw</code> mode of the server's Qt viewer.</p>
+      <h4>How to use</h4>
+      <ol>
+        <li>Choose the dataset, the shard, the first row and how many rows to list, then press Load. A shard is a compressed stream, so a late start row takes longer (the rows before it are read and dropped).</li>
+        <li>The filter box narrows the loaded rows by id, name or style, caption and tags. Use the previous/next window buttons to move through the shard.</li>
+        <li>Click a row or use the arrow keys to play it. For the SVG set the <i>SVG source</i> tab shows the original vector picture next to the Lottie animation.</li>
+      </ol>
+      <h4>Good to know</h4>
+      <ul>
+        <li>The address accepts <code>?dataset=svg&amp;shard=5&amp;start=200</code>.</li>
+        <li>Rows are read in file order; for the labelled rows of the animation set see <b>Qwen labels</b>.</li>
+      </ul>`,
+  },
+};
+
+const DOCS = [
+  ['/README.md', 'README', 'project state, what is done, what comes next'],
+  ['/docs/pipeline.html', 'Pipeline: where we are', 'map of every branch and step with its status and a manual'],
+  ['/docs/DATASET.md', 'Dataset', 'what data exists, its gaps and the target format'],
+  ['/docs/RETARGET.md', 'Retargeter', 'method, parameters, metrics, results, limits'],
+  ['/docs/EMBED.md', 'Embeddings (history)', 'record of the motion model experiments; the generator itself was removed on 2026-10-28'],
+  ['/docs/MOBILE.md', 'Running on a phone (history)', 'ONNX export audit of the removed generator'],
+  ['/docs/LOTTIE_PARSE.md', 'Lottie parsing', 'the text to Lottie branch: corpus parser'],
+  ['/eval/README.md', 'Evaluation plan', 'how the finished text to Lottie system is tested: shape, motion, humans and a model judge'],
+];
+
+const $ = id => document.getElementById(id);
+let opener = null;
+
+function card(key, p) {
+  const el = document.createElement('div');
+  el.className = 'card';
+  const open = p.href ? `<a class="btn" href="${p.href}">Open</a>` : `<button class="btn" data-ex="${key}">Open an example</button>`;
+  el.innerHTML = `
+    <button class="info" data-info="${key}" aria-label="How ${p.title} works" title="How it works (manual)">i</button>
+    <div class="top"><div class="ico">${ICONS[p.icon]}</div><div><h3>${p.title}</h3><p>${p.blurb}</p><span class="tag">${p.tag}</span></div></div>
+    <div class="actions">${open}<button class="btn alt" data-info="${key}">Manual</button></div>`;
+  return el;
+}
+for (const [k, p] of Object.entries(PAGES)) $(p.group).appendChild(card(k, p));
+$('docs').innerHTML = DOCS.map(([h, t, d]) => `<a href="${h}">${t}<span>${d}</span></a>`).join('');
+
+function openManual(key, from) {
+  const p = PAGES[key];
+  opener = from;
+  $('dtitle').textContent = p.title;
+  const go = p.href ? `<a class="btn" href="${p.href}">Open ${p.title}</a>` : `<button class="btn" data-ex="${key}">Open an example</button>`;
+  $('dbody').innerHTML = p.manual + `<div class="actions">${go}</div>`;
+  $('dbody').scrollTop = 0;
+  document.body.classList.add('open');
+  $('drawer').setAttribute('aria-hidden', 'false');
+  $('close').focus();
+}
+function closeManual() {
+  document.body.classList.remove('open');
+  $('drawer').setAttribute('aria-hidden', 'true');
+  if (opener) opener.focus();
+}
+document.addEventListener('click', async e => {
+  const i = e.target.closest('[data-info]'), x = e.target.closest('[data-ex]');
+  if (i) return openManual(i.dataset.info, i);
+  if (x) {
+    const old = x.textContent;
+    x.textContent = 'looking for a clip…';
+    try { location.href = await PAGES[x.dataset.ex].example(); } catch (err) { x.textContent = 'failed: ' + err.message; setTimeout(() => x.textContent = old, 2500); }
+  }
+});
+$('veil').addEventListener('click', closeManual);
+$('close').addEventListener('click', closeManual);
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && document.body.classList.contains('open')) closeManual();
+});
+
+fetch('/api/characters').then(r => r.json()).then(t => {
+  $('status').className = 'ok';
+  $('status').textContent = `server running · ${t.length} characters`;
+}).catch(() => { $('status').className = 'bad'; $('status').textContent = 'server not responding'; });
+</script>
+</body>
+</html>

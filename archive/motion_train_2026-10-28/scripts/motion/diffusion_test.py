@@ -335,20 +335,6 @@ def cmd_samples(args):
     path = Path(args.out) if args.out else ROOT / "docs" / "figures" / "diffusion_samples.png"
     sheet.save(path)
     print("saved", path, sheet.size)
-    if args.characters:
-        import decoded_to_character as DC
-        ref = DC.ref_skeleton()
-        for key, (x, nv, dur) in out.items():
-            k, j = map(int, key.split("_"))
-            if j != 0:
-                continue
-            label = "gen_" + "_".join(prompts[k].lower().split())[:24]
-            px = DC.proxy_from_features(x, nv, dur, ref)
-            path = DC.OUT_DIR / f"{label}.glb"
-            DC.write_proxy(path, px, ref, label)
-            for tk in ("mixamo_Aciana", "objaverse_a734df8176ca47c68b0a90d1a17b5132"):
-                info = DC.to_character(path, tk, label, f"generated from the prompt: {prompts[k]}", ref, extra=dict(kind="diffusion sample", prompt=prompts[k]))
-                print(f"  {label:30s} {tk[:14]:14s} skate {info['skate_mean']:.3f} fails {info['reach_fail_frames']} pen {info['penetration_max']:.3f}")
 
 
 def main():
@@ -360,7 +346,6 @@ def main():
     ap.add_argument("--dur-band", type=float, default=None, help="with --samples --speed-aware: use only the duration band (prompt's prior +- this many sd) and no speed cap")
     ap.add_argument("--cap-q", type=float, default=None, help="with --dur-band: also cap the speed at this quantile of the nearest captions' real speeds")
     ap.add_argument("--out", help="with --samples: where to save the figure")
-    ap.add_argument("--characters", action="store_true", help="with --samples: also put the first sample of each prompt on characters")
     ap.add_argument("--para", action="store_true", help="with --train: also train on the paraphrases of the captions (scripts/text/paraphrase.py)")
     ap.add_argument("--para-frac", type=float, default=0.5, help="with --para: share of the training texts that are paraphrases (for clips that have some)")
     ap.add_argument("--ckpt", help="checkpoint file name in data/embeddings (default z_diffusion.pt); for --train, --eval and --samples")

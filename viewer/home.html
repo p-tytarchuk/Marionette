@@ -66,16 +66,13 @@
   <header>
     <div>
       <h1>Marionette</h1>
-      <p class="sub">Text to animated characters: browse the dataset, compare retargeted motion, generate new clips from a prompt. Click the <b>i</b> on any card for its manual.</p>
+      <p class="sub">Two papers: vector rigs from Lottie and 2.5D motion transfer, then text to character and scene generation. Browse the datasets and the skeletons here. Click the <b>i</b> on any card for its manual.</p>
     </div>
     <span id="status">checking server…</span>
   </header>
 
   <h2>Viewers</h2>
   <div class="grid" id="viewers"></div>
-
-  <h2>Tools driven by the address bar</h2>
-  <div class="grid" id="tools"></div>
 
   <h2>Documentation <span class="say" style="text-transform:none;letter-spacing:0">(plain text, opens in the browser)</span></h2>
   <div class="docs" id="docs"></div>
@@ -94,21 +91,21 @@ const ICONS = {
   spark: '<svg viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z"/></svg>',
   rig: '<svg viewBox="0 0 24 24"><circle cx="12" cy="4.5" r="1.8"/><circle cx="12" cy="11" r="1.5"/><circle cx="7" cy="12" r="1.5"/><circle cx="17" cy="12" r="1.5"/><circle cx="9" cy="20" r="1.5"/><circle cx="15" cy="20" r="1.5"/><path d="M12 6.3v3.2M10.7 11.6L8.4 12M13.3 11.6l2.3.4M12 12.5l-2.6 6M12 12.5l2.6 6"/></svg>',
   film: '<svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M9 6v12M15 6v12M3 10h3M3 14h3M18 10h3M18 14h3"/></svg>',
-  portrait: '<svg viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="2"/><circle cx="12" cy="10" r="3"/><path d="M6.5 19c1-3 3-4 5.5-4s4.5 1 5.5 4"/></svg>',
 };
 
 const PAGES = {
   browser: {
     title: 'Character browser', icon: 'person', href: '/viewer/', group: 'viewers',
-    blurb: 'Look at every normalised character (mesh, skeleton) and play its animation clips.',
-    tag: '3,570 characters',
+    blurb: 'Look at every character of every class (biped, quadruped, winged, limbless, other) and play its original animation clips.',
+    tag: '3,932 characters',
     manual: `
       <h4>What it is</h4>
-      <p>A 3D viewer for the dataset in <code>data/characters</code>: the characters after scale, axis and ground normalisation, with the clips that were converted onto them. Use it to check that a character looks right and that its clips play.</p>
+      <p>A 3D viewer for the character dataset: the 3,570 normalised characters of <code>data/characters</code> (biped and quadruped, after scale, axis and ground normalisation) and the 362 characters of the other classes (winged, limbless, other), which were never normalised and are shown as they are, from their source files. Only the <b>original animations</b> of the dataset are listed; retargeted and generated clips are not.</p>
       <h4>How to use</h4>
       <ol>
-        <li>Pick a character in the left list. Narrow it with the search box (id), the class filter (biped / quadruped), the source filter (mixamo / objaverse), <i>flagged</i> (characters the normalisation flagged, see <code>data/normalize_report.csv</code>) and <i>has clips</i>.</li>
-        <li>The info panel shows the character's height, size, triangle and joint counts and file size.</li>
+        <li>Pick a character in the left list. Narrow it with the search box (id), the class filter (biped / quadruped / winged / limbless / other), the source filter (mixamo / objaverse), <i>flagged</i> (characters the normalisation flagged, see <code>data/normalize_report.csv</code>) and <i>has clips</i>.</li>
+        <li>The info panel shows the character's height, size, triangle and joint counts and file size. Characters of the other classes show their original size and orientation (flag <i>not_normalised</i>).</li>
+        <li>For those characters the original animation (a motion file of the export) is drawn as a moving yellow skeleton, because no converted clip exists for them yet and the mesh itself stays in its rest pose. The file's skeleton is moved onto the mesh by a rotation, scale and shift fitted on the rest pose, so it sits on the mesh at rest; it then follows the clip, including its root motion (a hover or a jump lifts it away from the still mesh). The few clips where the fit is not exact (about 1 in 10) are drawn beside the mesh instead.</li>
         <li>Pick a clip in the clip list (it has its own filter box). It plays at once if <i>autoplay</i> is ticked; drag the slider to scrub.</li>
       </ol>
       <h4>Controls</h4>
@@ -125,89 +122,6 @@ const PAGES = {
         <li>Mixamo characters share one set of converted clips; Objaverse characters mostly have a single clip.</li>
         <li>The pages load three.js from a CDN, so the browser needs internet access.</li>
         <li>Related: <code>docs/DATASET.md</code> (what the data is and its gaps).</li>
-      </ul>`,
-  },
-  compare: {
-    title: 'Retarget compare', icon: 'compare', href: '/viewer/compare.html', group: 'viewers',
-    blurb: 'A source clip next to the same motion retargeted onto another character, with quality numbers.',
-    tag: 'every retargeted clip',
-    manual: `
-      <h4>What it is</h4>
-      <p>The list holds every retargeted clip on the server: <code>data/characters/*/anims/rt__*.glb</code> (made by <code>scripts/rigging/retarget.py</code>, including the clips the generator writes) and the clips on Anymate-predicted rigs. Each result plays on the right (orange label, "retargeted") beside the original motion on a Mixamo character (blue label, "source").</p>
-      <h4>How to use</h4>
-      <ol>
-        <li>Search the left list by target character or by source clip name; filter by target class.</li>
-        <li>Click a result. The panel at the top right gives the metrics of that retarget: foot sliding, reach failures (frames where a foot cannot reach the ground), ground penetration, rotation spikes over 60°, maximum body lift, size ratio of the hips, which limbs drive the forelimbs, and how many animation tracks were bound.</li>
-        <li>Compare the two characters side by side, or switch on <b>Overlay</b> to draw them on top of each other.</li>
-        <li>Choose another <i>source character</i> in the drop-down if the Mixamo body hides the motion.</li>
-      </ol>
-      <h4>Controls</h4>
-      <table>
-        <tr><td>drag / wheel / right-drag</td><td>orbit / zoom / pan</td></tr>
-        <tr><td><kbd>↑</kbd> <kbd>↓</kbd> (<kbd>j</kbd> <kbd>k</kbd>)</td><td>previous / next result</td></tr>
-        <tr><td><kbd>space</kbd>, <kbd>←</kbd> <kbd>→</kbd></td><td>play / pause, step one frame</td></tr>
-        <tr><td><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd></td><td>side, front, three-quarter camera</td></tr>
-        <tr><td><kbd>x</kbd> <kbd>o</kbd> <kbd>s</kbd> <kbd>t</kbd> <kbd>f</kbd></td><td>source on / off, overlay, skeletons, root trails, follow</td></tr>
-        <tr><td>speed</td><td>0.1 to 2, loop on / off</td></tr>
-      </table>
-      <h4>Good to know</h4>
-      <ul>
-        <li>The address bar holds the selection (<code>#target|clip</code>), so a link to a result can be shared or bookmarked.</li>
-        <li>Names starting <code>decoded:</code> are clips generated by the model; <code>anymate_…</code> targets are predicted rigs (see the Anymate card).</li>
-        <li>The first load builds the list (a few seconds); it is cached for ten minutes.</li>
-        <li>Related: <code>docs/RETARGET.md</code> (method, parameters, results, limitations).</li>
-      </ul>`,
-  },
-  generate: {
-    title: 'Generator', icon: 'spark', href: '/viewer/generate.html', group: 'viewers',
-    blurb: 'Type what a character should do; a model makes the motion and puts it on a character.',
-    tag: 'prompt → motion → character',
-    manual: `
-      <h4>What it is</h4>
-      <p>The whole text-to-motion chain in one page. Your prompt is split into a <i>look</i> and an <i>action</i>, the action goes through CLIP and a latent diffusion model, the result is decoded to a human skeleton, put on a character by IK and the rule-based retargeter, and played on the right next to its source.</p>
-      <h4>How to use</h4>
-      <ol>
-        <li>Type a prompt or click an example chip. The model was trained on captions like "An object performs a backflip."; <i>rewrite the prompt</i> (on by default) turns free wording into that form.</li>
-        <li>Leave <i>pick the character from the shape words</i> ticked to match words like "a small brown dog" against portraits of all characters. With no shape words, the character chosen under <b>Character</b> is used. Only existing characters are returned; no new body is made.</li>
-        <li>Press <b>Generate</b> (or <b>new seed</b> for another random sample). The status line, timing and quality gate report appear under the button; each result is added to <i>This session</i> and can be replayed.</li>
-      </ol>
-      <h4>Settings</h4>
-      <table>
-        <tr><td>Text front end</td><td>rules (instant, no language model) or a small LLM (Qwen2.5-1.5B, loads on first use)</td></tr>
-        <tr><td>Guidance (1-6)</td><td>higher follows the prompt harder but is less varied; 2 is the tested default</td></tr>
-        <tr><td>Seed</td><td>same seed and prompt give the same clip</td></tr>
-        <tr><td>Smooth</td><td>low-pass on the generated limbs; removes joint jumps in fast moves such as flips (0 = off)</td></tr>
-        <tr><td>Mode</td><td>auto picks walk (speed cap), run (duration band) or plain from the prompt</td></tr>
-        <tr><td>Straight line</td><td>no sideways drift or turning; leave off for actions that turn</td></tr>
-        <tr><td>Tries / flips must land upright</td><td>the quality gate draws up to N candidates and keeps the first that is smooth, completes the flip and lands upright; raise it for flips</td></tr>
-        <tr><td>Mobile runtime</td><td>runs the neural part as a phone would (ONNX, int8, CPU) and shows per-step timing; the phone figure is an assumed slowdown, not a measurement</td></tr>
-      </table>
-      <h4>Good to know</h4>
-      <div class="note">Generation needs the conda environment <code>Mario</code>: start the server with <code>conda activate Mario &amp;&amp; python viewer/serve.py</code>. The models load at server start (about 8 s) unless <code>--no-preload</code> is used.</div>
-      <ul>
-        <li>Prompts are limited to 200 characters.</li>
-        <li>Every result is written as a clip in <code>data/characters/&lt;target&gt;/anims/</code>; <code>scripts/tools/clean_generated.py</code> removes them (dry run by default).</li>
-        <li>Related: <code>docs/EMBED.md</code> (every experiment behind the generator), <code>docs/MOBILE.md</code> (the phone audit).</li>
-      </ul>`,
-  },
-  anymate: {
-    title: 'Predicted rigs (Anymate)', icon: 'rig', href: '/viewer/compare.html#anymate_mixamo_Big_Vegas|rt__Walking', group: 'viewers',
-    blurb: 'Characters whose skeleton and skin weights were predicted from the mesh alone, then animated.',
-    tag: 'opens in Retarget compare',
-    manual: `
-      <h4>What it is</h4>
-      <p>A test of whether a skeleton can be created for a body that has none. The pretrained Anymate network (<code>../Anymate</code>) predicts joints, bone connections and skin weights from the mesh; <code>scripts/rigging/anymate_roles.py</code> then names the joints that the retargeter needs (hips, head, legs, arms) from the shape of the predicted skeleton, and <code>scripts/rigging/anymate_rig.py</code> builds a skinned rig and retargets clips onto it.</p>
-      <h4>How to use</h4>
-      <ol>
-        <li>Open <b>Retarget compare</b> and type <code>anymate</code> in the search box: the 32 results (16 characters, Walking and Jump_3) are the predicted rigs.</li>
-        <li>Compare the motion with the source on the left, and read the metrics panel.</li>
-        <li>Press <kbd>s</kbd> to show the predicted skeleton inside the mesh.</li>
-      </ol>
-      <h4>Good to know</h4>
-      <ul>
-        <li>The mesh has a plain grey material: textures are not carried over.</li>
-        <li>Bipeds look right; quadrupeds are rougher (some limb joints are mis-assigned). Numbers and figures are in <code>docs/figures/anymate_*.png</code> and <code>data/anymate/retarget_on_anymate_rigs.csv</code>.</li>
-        <li>Rigs were built for a held-out half of the characters, status "ok".</li>
       </ul>`,
   },
   tokens: {
@@ -237,24 +151,62 @@ const PAGES = {
         <li>Not handled: time remapping, 3D layers, expressions. The samples are written by <code>python scripts/lottie2d/lottie_tokens.py demo</code> into <code>data/lottie_tokens_demo</code>.</li>
       </ul>`,
   },
-  search: {
-    title: 'Lottie search', icon: 'spark', href: '/viewer/lottie_search.html', group: 'viewers',
-    blurb: 'Type a prompt, get the nearest Lottie animations and 3D clips. Retrieval, not generation.',
-    tag: 'text → nearest animations',
+  rate: {
+    title: 'Rate', icon: 'film', href: '/viewer/rate.html', group: 'viewers',
+    blurb: 'Human evaluation: score characters and motions by keyboard, blind to the system.',
+    tag: 'eval/human_eval.md',
     manual: `
       <h4>What it is</h4>
-      <p>A search over the whole labelled Lottie corpus (about 46,000 animations with joint tokens) and the 3D clips (about 12,700), using the joint model trained on both. Your prompt is encoded with CLIP and compared with every clip's motion embedding, separately in each domain. <b>Nothing is generated</b>: the animations shown are existing ones from the dataset, played as they are.</p>
+      <p>The rating tool of the human evaluation (<code>eval/human_eval.md</code>). It shows one prompt and the output (pictures or video) and collects the scores of the rubric (<code>eval/shape/rubric.md</code>, <code>eval/motion/rubric.md</code>), or a left / right preference in the pairwise mode. You never see which system made an item, whether it is a control, or what the model judge said.</p>
       <h4>How to use</h4>
       <ol>
-        <li>Type a prompt (or click an example) and press Search. <i>Rewrite into dataset wording</i> turns "a person waves hello" into "An object waves hello.", the style of the 3D captions, which mainly helps the 3D matches; untick it to search with your words as typed.</li>
-        <li>Left: the nearest Lottie animations, playing, with their score and the original caption. Right: the nearest 3D clips, with their caption and class.</li>
-        <li>The score is the cosine between the query and the clip in the model's space; compare scores within one list, not between the two lists (each domain is centred on its own text mean).</li>
+        <li>Open the page, pick a rating set (a folder under <code>data/eval/</code> holding <code>set.json</code> and <code>items.jsonl</code>) and type your rater name. To try it: <code>python scripts/tools/make_demo_rating_set.py</code> writes two demo sets.</li>
+        <li>Keys: <b>1</b> to <b>5</b> score the highlighted axis and move to the next; <b>0</b> or <b>n</b> marks not applicable; <b>Backspace</b> goes back an axis; <b>Enter</b> saves and shows the next item; <b>x</b> means can't judge; <b>a</b> shows the anchor examples for the axis; <b>c</b> writes a comment; <b>[</b> and <b>]</b> move between items; <b>space</b> plays or pauses video. In the pairwise mode: <b>1</b> left, <b>2</b> right, <b>3</b> tie.</li>
+        <li>Every save appends one line to the set's <code>human.jsonl</code> and nothing is ever rewritten. Going back to an item and saving again adds a new row with a higher revision; the earlier one stays. Closing the page loses nothing: opening the set again continues at the first item you have not rated.</li>
       </ol>
       <h4>Good to know</h4>
       <ul>
-        <li>Locomotion words (walk, run, jump, dance) find the right Lottie animations most reliably. Small gestures (wave, point, nod) are weak from the Lottie side: the held-out tests gave about 1 to 2 times chance for them.</li>
-        <li>All clips are searched, including the ones the model trained on. This is a browsing tool, not an evaluation.</li>
-        <li>Index: <code>python scripts/lottie2d/lottie_search.py build --tag mixed</code>. The model drop-down lists every index that exists.</li>
+        <li>The order of the items is random but fixed by the seed in <code>set.json</code>, so every rater sees the same order. Axes that do not apply to an item are dimmed and stored as null.</li>
+        <li>Rate in sessions of about 50 items; the anchors are there to keep the scale the same from the first item to the last.</li>
+        <li>Only <code>data/eval/</code> can be read or written through this page; a set whose media file is missing is refused when it is opened.</li>
+      </ul>`,
+  },
+  motion_classes: {
+    title: 'Motion classes', icon: 'rig', href: '/viewer/motion_classes.html', group: 'viewers',
+    blurb: 'Clips per body class (biped, quadruped, winged, limbless) and movement mode: what motion data each class has.',
+    tag: 'scripts/motion/motion_coverage.py',
+    manual: `
+      <h4>What it is</h4>
+      <p>The starting point of the motion work. The 12,672 3D clips of the export are sorted into the four classes of the skeleton spec (biped, quadruped, winged, limbless) plus <i>other</i>, with how many can be used now, how many hours of motion they hold and which movements their captions describe. A second table gives the tokenised Lottie clips by the body plan Qwen found (2-leg or 4-leg only).</p>
+      <h4>How to use</h4>
+      <ol>
+        <li>Read the first table: <i>usable now</i> is red when a class has no clip a character can play yet (winged, limbless and other: mostly because their characters were never normalised).</li>
+        <li>The movement table colours each cell by its share of the class; <b>·</b> means no caption mentions it.</li>
+        <li>Click a class: the panel on the right lists why its clips are unusable and every movement mode with its count. Click a mode to read example captions.</li>
+      </ol>
+      <h4>Good to know</h4>
+      <ul>
+        <li>A clip counts for a mode when its caption mentions the word (keyword rules), so the counts are mentions, not verified labels; one clip can count for several modes.</li>
+        <li>Marine bodies are counted as limbless, insectoid and rigid ones as other. The numbers come from <code>data/inventory/clips.csv</code>; the page needs no conda env.</li>
+      </ul>`,
+  },
+  skeletons: {
+    title: 'Skeletons', icon: 'rig', href: '/viewer/skeletons.html', group: 'viewers',
+    blurb: 'Real and synthetic skeletons side by side, at any yaw, with roles, class and movement modes.',
+    tag: 'docs/SKELETON_SPEC.md',
+    manual: `
+      <h4>What it is</h4>
+      <p>The skeletons of the real data (4,470 from the 3D manifest, AnyTop's 70 creatures, the Anymate rigs, 557 Lottie rigs) next to the 2,000 synthetic ones from <code>scripts/rigging/skeleton_synth.py</code>, drawn in 2D. It is for judging whether the synthetic skeletons look like real ones and for seeing what the role-labelled spec (<code>docs/SKELETON_SPEC.md</code>) derives from them.</p>
+      <h4>How to use</h4>
+      <ol>
+        <li>Pick a class: both columns show that class, the real one on the left, the synthetic one on the right. The drop-downs narrow each side to one data source or one body variant; <i>Reshuffle</i> draws a new sample of 12.</li>
+        <li>The yaw slider turns every skeleton about its vertical axis (0° is the profile, 90° the front or back) and redraws it; limbs on the far side of the body are drawn fainter. Lottie rigs are already 2D, so the yaw does not change them.</li>
+        <li>Click a skeleton: the large drawing, its role colours, the class derived from its parts, its carriers (legs, arms, wings, fins, tail) and the movement modes it supports (native, stylised, unsupported, with the reason).</li>
+      </ol>
+      <h4>Good to know</h4>
+      <ul>
+        <li>Role labels exist for every synthetic skeleton (by construction) and for the Anymate predicted rigs (from <code>anymate_roles.py</code>). The other real skeletons have none: their class is the dataset's own label, so they are drawn in plain grey and show no modes.</li>
+        <li>The data come from <code>data/analysis/skeleton_classes/</code> (<code>python scripts/rigging/skeleton_classes.py build</code>, <code>lottie-build</code>) and <code>data/synthetic/skeletons/</code> (<code>python scripts/rigging/skeleton_synth.py write</code>); the page says so when a file is missing. It needs the conda env Mario.</li>
       </ul>`,
   },
   labels: {
@@ -296,58 +248,16 @@ const PAGES = {
         <li>Rows are read in file order; for the labelled rows of the animation set see <b>Qwen labels</b>.</li>
       </ul>`,
   },
-  strip: {
-    title: 'Filmstrip', icon: 'film', href: null, group: 'tools',
-    blurb: 'One picture of a clip: evenly spaced frames from a fixed camera, one row per clip.',
-    tag: 'for figures',
-    manual: `
-      <h4>What it is</h4>
-      <p>A rendering page that is controlled entirely by the address bar. Each row is one retargeted clip; the tiles are frames from a fixed orthographic camera, all rows at the same scale (a multiple of the character's rest height), so rows can be compared. It is used for the figures in <code>docs/figures</code>.</p>
-      <h4>How to use</h4>
-      <p>Press <b>Open an example</b> (it picks the first retargeted clip on the server) or build the address yourself:</p>
-      <p><code>/viewer/strip.html?rows=&lt;character&gt;|&lt;clip&gt;;&lt;character&gt;|&lt;clip&gt;&amp;n=8&amp;view=side</code></p>
-      <table>
-        <tr><td>rows</td><td><code>folder|clip</code>, rows separated by <code>;</code>. The folder is a name in <code>data/characters</code>, the clip a file in its <code>anims</code> folder without <code>.glb</code> (for example <code>rt__Walking</code>)</td></tr>
-        <tr><td>n</td><td>frames per row (default 8)</td></tr>
-        <tr><td>times</td><td>comma list of seconds instead of <code>n</code> even frames, e.g. <code>1.2,1.23,1.27</code></td></tr>
-        <tr><td>view</td><td><code>side</code> or <code>front</code></td></tr>
-        <tr><td>w, h, span</td><td>tile width and height in pixels (300 × 360), and the view height as a multiple of the character height (2.4)</td></tr>
-      </table>
-      <p class="say">To save the picture, right-click the canvas. The bar above it lists each row's clip, duration and character height.</p>`,
-    example: async () => {
-      const d = await (await fetch('/api/retargets')).json();
-      const it = d.items.find(i => !i.target.startsWith('anymate_') && !i.name.startsWith('rt__dec_'));
-      if (!it) throw new Error('no retargeted clip found');
-      return `/viewer/strip.html?rows=${encodeURIComponent(it.target + '|' + it.name)}&n=8`;
-    },
-  },
-  portrait: {
-    title: 'Portraits', icon: 'portrait', href: null, group: 'tools',
-    blurb: 'Rest-pose pictures of characters: front, side and three-quarter.',
-    tag: 'used for shape matching',
-    manual: `
-      <h4>What it is</h4>
-      <p>A rendering page controlled by the address bar. Each row is one character in three tiles (front, side, three-quarter) from an orthographic camera fitted to the character's bounding box, so the <i>shape</i> of the body, not its size, is what differs between rows. <code>scripts/generate/shape_retrieval.py</code> uses these pictures to embed every character with CLIP, which is how the generator picks a character from words like "a small brown dog".</p>
-      <h4>How to use</h4>
-      <p>Press <b>Open an example</b>, or build the address:</p>
-      <p><code>/viewer/portrait.html?chars=&lt;folder&gt;;&lt;folder&gt;&amp;w=256&amp;h=256</code></p>
-      <table>
-        <tr><td>chars</td><td>character folder names from <code>data/characters</code>, separated by <code>;</code></td></tr>
-        <tr><td>w, h</td><td>tile size in pixels (default 256)</td></tr>
-      </table>
-      <p class="say">To save the picture, right-click the canvas.</p>`,
-    example: async () => '/viewer/portrait.html?chars=' + encodeURIComponent('mixamo_Aciana;mixamo_Aj') + '&w=256&h=256',
-  },
 };
 
 const DOCS = [
   ['/README.md', 'README', 'project state, what is done, what comes next'],
-  ['/docs/pipeline.html', 'Pipeline: where we are', 'map of every branch and step with its status and a manual'],
+  ['/docs/pipeline.html', 'Pipeline: where we are', 'the work plan of the two papers, step by step (1.1 to 2.8): the plan\'s wording, status, a manual and the original drawing'],
   ['/docs/DATASET.md', 'Dataset', 'what data exists, its gaps and the target format'],
-  ['/docs/RETARGET.md', 'Retargeter', 'method, parameters, metrics, results, limits'],
-  ['/docs/EMBED.md', 'Embeddings and generator', 'the detailed record of every experiment'],
-  ['/docs/MOBILE.md', 'Running on a phone', 'ONNX export, timings, memory audit'],
-  ['/docs/LOTTIE_PARSE.md', 'Lottie parsing', 'the text to Lottie branch: corpus parser'],
+  ['/docs/LOTTIE_PARSE.md', 'Lottie parsing', 'the corpus parser (step 1.1)'],
+  ['/docs/SKELETON_SPEC.md', 'Skeleton spec', 'the role-labelled 2D skeleton format'],
+  ['/docs/SKELETON_CLASSES.md', 'Skeleton classes', 'what a skeleton alone says about its body type'],
+  ['/eval/README.md', 'Evaluation plan', 'how the finished system is tested: shape, motion, humans and a model judge'],
 ];
 
 const $ = id => document.getElementById(id);
@@ -397,9 +307,9 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape' && document.body.classList.contains('open')) closeManual();
 });
 
-fetch('/api/targets').then(r => r.json()).then(t => {
+fetch('/api/characters').then(r => r.json()).then(t => {
   $('status').className = 'ok';
-  $('status').textContent = `server running · ${t.length} retarget targets`;
+  $('status').textContent = `server running · ${t.length} characters`;
 }).catch(() => { $('status').className = 'bad'; $('status').textContent = 'server not responding'; });
 </script>
 </body>

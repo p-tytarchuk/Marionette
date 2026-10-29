@@ -1,0 +1,135 @@
+{
+ "spec": "skeleton-roles/1",
+ "id": "limbless_fish",
+ "view": {
+  "yaw_deg": 0,
+  "facing": "right"
+ },
+ "parts": [
+  {
+   "id": "trunk",
+   "kind": "trunk"
+  },
+  {
+   "id": "head",
+   "kind": "head"
+  },
+  {
+   "id": "tail",
+   "kind": "tail",
+   "secondary": true
+  },
+  {
+   "id": "fin_dorsal",
+   "kind": "fin",
+   "side": "C"
+  },
+  {
+   "id": "fin_pect_L",
+   "kind": "fin",
+   "side": "L"
+  }
+ ],
+ "joints": [
+  {
+   "id": "trunk1",
+   "parent": null,
+   "pos": [
+    0,
+    0.3
+   ],
+   "part": "trunk"
+  },
+  {
+   "id": "trunk2",
+   "parent": "trunk1",
+   "pos": [
+    0.2,
+    0.3
+   ],
+   "part": "trunk"
+  },
+  {
+   "id": "trunk3",
+   "parent": "trunk2",
+   "pos": [
+    0.4,
+    0.3
+   ],
+   "part": "trunk"
+  },
+  {
+   "id": "trunk4",
+   "parent": "trunk3",
+   "pos": [
+    0.6,
+    0.3
+   ],
+   "part": "trunk"
+  },
+  {
+   "id": "head1",
+   "parent": "trunk4",
+   "pos": [
+    0.7,
+    0.3
+   ],
+   "part": "head"
+  },
+  {
+   "id": "tail1",
+   "parent": "trunk1",
+   "pos": [
+    -0.15,
+    0.3
+   ],
+   "part": "tail"
+  },
+  {
+   "id": "tail2",
+   "parent": "tail1",
+   "pos": [
+    -0.3,
+    0.38
+   ],
+   "part": "tail"
+  },
+  {
+   "id": "fin_dorsal1",
+   "parent": "trunk2",
+   "pos": [
+    0.2,
+    0.42
+   ],
+   "part": "fin_dorsal"
+  },
+  {
+   "id": "fin_dorsal2",
+   "parent": "fin_dorsal1",
+   "pos": [
+    0.3,
+    0.44
+   ],
+   "part": "fin_dorsal"
+  },
+  {
+   "id": "fin_pect_L1",
+   "parent": "trunk4",
+   "pos": [
+    0.58,
+    0.22
+   ],
+   "part": "fin_pect_L"
+  },
+  {
+   "id": "fin_pect_L2",
+   "parent": "fin_pect_L1",
+   "pos": [
+    0.5,
+    0.15
+   ],
+   "part": "fin_pect_L"
+  }
+ ],
+ "declared_class": "limbless"
+}

@@ -80,18 +80,6 @@ def _strata(chars):
     return s
 
 
-def clip_split_overlap(chars, val):
-    """Objaverse characters whose rig is a validation rig in motion_ae.py's clip split (rig = skeleton hash of the clip)."""
-    sys.path[:0] = [str(d) for d in (ROOT / "scripts").glob("[a-z]*") if d.suffix == ""]
-    try:
-        from motion_ae import split_of
-    except Exception as e:                                           # torch missing in this interpreter
-        return f"not computed ({type(e).__name__})"
-    ae_val = {c["key"] for c in chars if c["source"] == "objaverse" and split_of(dict(dataset="objaverse", clip="", rig=c["id"])) == "val"}
-    mine = {k for k in val if k.startswith("objaverse_")}
-    return f"{len(mine & ae_val)} of {len(mine)} held-out Objaverse characters are also held out by motion_ae.split_of"
-
-
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--write", action="store_true")
@@ -112,7 +100,6 @@ def main():
         v = [c for c in members if c["key"] in val]
         summary["per_stratum"][f"{source}/{cls}"] = dict(total=len(members), val=len(v), val_targets=sum(c["target"] for c in v),
                                                          skeletons=len({c["skeleton"] for c in members}))
-    summary["overlap_with_clip_split"] = clip_split_overlap(chars, val)
     print(json.dumps(summary, indent=2, ensure_ascii=False))
     if not args.write:
         print("\n(dry run, nothing written; --write to write)")

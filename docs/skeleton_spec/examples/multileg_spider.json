@@ -1,0 +1,328 @@
+{
+ "spec": "skeleton-roles/1",
+ "id": "multileg_spider",
+ "view": {
+  "yaw_deg": 0,
+  "facing": "right"
+ },
+ "parts": [
+  {
+   "id": "trunk",
+   "kind": "trunk"
+  },
+  {
+   "id": "head",
+   "kind": "head"
+  },
+  {
+   "id": "leg_L1",
+   "kind": "leg",
+   "side": "L",
+   "girdle": null,
+   "layer": "front",
+   "visible": true
+  },
+  {
+   "id": "leg_R1",
+   "kind": "leg",
+   "side": "R",
+   "girdle": null,
+   "layer": "behind",
+   "visible": true
+  },
+  {
+   "id": "leg_L2",
+   "kind": "leg",
+   "side": "L",
+   "girdle": null,
+   "layer": "front",
+   "visible": true
+  },
+  {
+   "id": "leg_R2",
+   "kind": "leg",
+   "side": "R",
+   "girdle": null,
+   "layer": "behind",
+   "visible": true
+  },
+  {
+   "id": "leg_L3",
+   "kind": "leg",
+   "side": "L",
+   "girdle": null,
+   "layer": "front",
+   "visible": true
+  },
+  {
+   "id": "leg_R3",
+   "kind": "leg",
+   "side": "R",
+   "girdle": null,
+   "layer": "behind",
+   "visible": true
+  },
+  {
+   "id": "leg_L4",
+   "kind": "leg",
+   "side": "L",
+   "girdle": null,
+   "layer": "front",
+   "visible": true
+  },
+  {
+   "id": "leg_R4",
+   "kind": "leg",
+   "side": "R",
+   "girdle": null,
+   "layer": "behind",
+   "visible": true
+  }
+ ],
+ "joints": [
+  {
+   "id": "trunk1",
+   "parent": null,
+   "pos": [
+    0,
+    0.2
+   ],
+   "part": "trunk"
+  },
+  {
+   "id": "trunk2",
+   "parent": "trunk1",
+   "pos": [
+    0.15,
+    0.22
+   ],
+   "part": "trunk"
+  },
+  {
+   "id": "head1",
+   "parent": "trunk2",
+   "pos": [
+    0.22,
+    0.24
+   ],
+   "part": "head"
+  },
+  {
+   "id": "leg_L11",
+   "parent": "trunk1",
+   "pos": [
+    -0.1,
+    0.18
+   ],
+   "part": "leg_L1"
+  },
+  {
+   "id": "leg_L12",
+   "parent": "leg_L11",
+   "pos": [
+    -0.15,
+    0.1
+   ],
+   "part": "leg_L1"
+  },
+  {
+   "id": "leg_L13",
+   "parent": "leg_L12",
+   "pos": [
+    -0.2,
+    0.0
+   ],
+   "part": "leg_L1"
+  },
+  {
+   "id": "leg_R11",
+   "parent": "trunk1",
+   "pos": [
+    -0.12,
+    0.18
+   ],
+   "part": "leg_R1"
+  },
+  {
+   "id": "leg_R12",
+   "parent": "leg_R11",
+   "pos": [
+    -0.17,
+    0.1
+   ],
+   "part": "leg_R1"
+  },
+  {
+   "id": "leg_R13",
+   "parent": "leg_R12",
+   "pos": [
+    -0.22,
+    0.0
+   ],
+   "part": "leg_R1"
+  },
+  {
+   "id": "leg_L21",
+   "parent": "trunk2",
+   "pos": [
+    0.0,
+    0.18
+   ],
+   "part": "leg_L2"
+  },
+  {
+   "id": "leg_L22",
+   "parent": "leg_L21",
+   "pos": [
+    -0.05,
+    0.1
+   ],
+   "part": "leg_L2"
+  },
+  {
+   "id": "leg_L23",
+   "parent": "leg_L22",
+   "pos": [
+    -0.1,
+    0.0
+   ],
+   "part": "leg_L2"
+  },
+  {
+   "id": "leg_R21",
+   "parent": "trunk2",
+   "pos": [
+    -0.02,
+    0.18
+   ],
+   "part": "leg_R2"
+  },
+  {
+   "id": "leg_R22",
+   "parent": "leg_R21",
+   "pos": [
+    -0.07,
+    0.1
+   ],
+   "part": "leg_R2"
+  },
+  {
+   "id": "leg_R23",
+   "parent": "leg_R22",
+   "pos": [
+    -0.12,
+    0.0
+   ],
+   "part": "leg_R2"
+  },
+  {
+   "id": "leg_L31",
+   "parent": "trunk1",
+   "pos": [
+    0.1,
+    0.18
+   ],
+   "part": "leg_L3"
+  },
+  {
+   "id": "leg_L32",
+   "parent": "leg_L31",
+   "pos": [
+    0.05,
+    0.1
+   ],
+   "part": "leg_L3"
+  },
+  {
+   "id": "leg_L33",
+   "parent": "leg_L32",
+   "pos": [
+    0.0,
+    0.0
+   ],
+   "part": "leg_L3"
+  },
+  {
+   "id": "leg_R31",
+   "parent": "trunk1",
+   "pos": [
+    0.08,
+    0.18
+   ],
+   "part": "leg_R3"
+  },
+  {
+   "id": "leg_R32",
+   "parent": "leg_R31",
+   "pos": [
+    0.03,
+    0.1
+   ],
+   "part": "leg_R3"
+  },
+  {
+   "id": "leg_R33",
+   "parent": "leg_R32",
+   "pos": [
+    -0.02,
+    0.0
+   ],
+   "part": "leg_R3"
+  },
+  {
+   "id": "leg_L41",
+   "parent": "trunk2",
+   "pos": [
+    0.2,
+    0.18
+   ],
+   "part": "leg_L4"
+  },
+  {
+   "id": "leg_L42",
+   "parent": "leg_L41",
+   "pos": [
+    0.15,
+    0.1
+   ],
+   "part": "leg_L4"
+  },
+  {
+   "id": "leg_L43",
+   "parent": "leg_L42",
+   "pos": [
+    0.1,
+    0.0
+   ],
+   "part": "leg_L4"
+  },
+  {
+   "id": "leg_R41",
+   "parent": "trunk2",
+   "pos": [
+    0.18,
+    0.18
+   ],
+   "part": "leg_R4"
+  },
+  {
+   "id": "leg_R42",
+   "parent": "leg_R41",
+   "pos": [
+    0.13,
+    0.1
+   ],
+   "part": "leg_R4"
+  },
+  {
+   "id": "leg_R43",
+   "parent": "leg_R42",
+   "pos": [
+    0.08,
+    0.0
+   ],
+   "part": "leg_R4"
+  }
+ ],
+ "declared_class": "other"
+}

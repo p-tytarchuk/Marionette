@@ -4,7 +4,7 @@
 #
 # Usage: .claude/gate.sh fast | full | integration | format <file>
 #   fast         syntax check of every .py file                       (about 0.2 s; runs when Claude finishes a turn with uncommitted changes)
-#   full         fast + the retargeter identity self-test              (reads data/, writes nothing)
+#   full         fast + the skeleton-spec and synthetic-skeleton self-tests   (neither writes anything)
 #   integration  same as full: the project has no e2e suite
 #   format FILE  no formatter is configured: does nothing
 #
@@ -20,7 +20,7 @@ PY="${MARIONETTE_PY:-/Users/paveltitarcuk/miniconda3/envs/Mario/bin/python3}"
 FORMAT_CMD=""      # none configured
 LINT_CMD="PYTHONDONTWRITEBYTECODE=1 $PY .claude/checks/syntax_check.py"
 TYPECHECK_CMD=""   # none configured
-TEST_CMD="PYTHONDONTWRITEBYTECODE=1 $PY scripts/rigging/retarget.py --self-test"
+TEST_CMD="PYTHONDONTWRITEBYTECODE=1 $PY scripts/rigging/skeleton_spec.py --self-test && PYTHONDONTWRITEBYTECODE=1 $PY scripts/rigging/skeleton_synth.py --self-test"
 E2E_CMD=""         # none
 
 set -o pipefail

@@ -9,6 +9,8 @@ __pycache__/
 # Large generated data and external inputs (kept on disk, not versioned)
 /data/
 /sources/
+# data moved out of data/ into the archive (README "Removed"): still data, not versioned
+/archive/*/data/
 
 # ghost directory entry on the exFAT drive (a file named like the cache dir); see README
 __pycache__

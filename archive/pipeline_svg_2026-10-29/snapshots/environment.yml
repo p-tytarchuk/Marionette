@@ -1,0 +1,45 @@
+name: Mario
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pip
+  # scripts/ (filter_dedupe.py, normalize.py use numpy only; the rest is for analysis and training data prep)
+  - numpy
+  - scipy
+  - pandas
+  - pyyaml
+  - tqdm
+  - pillow
+  - matplotlib
+  - jupyterlab
+  - ipykernel
+  # 3D / GLB / skeletons
+  - trimesh
+  - networkx
+  - pygltflib
+  # torch from conda-forge on purpose: the pip wheel ships its own libomp and aborts next to conda's
+  # ("OMP: Error #15") as soon as it is imported
+  - pytorch
+  - torchvision
+  - pip:
+      # captioning + VLM tooling for ../Models (Qwen3-VL-2B, InternVL3.5-2B, Qwen2.5 text models)
+      - transformers>=4.57
+      - accelerate
+      - safetensors
+      - huggingface_hub
+      - sentencepiece
+      - einops
+      - timm
+      - qwen-vl-utils
+      - onnxruntime        # only the removed generator used these three (archive/motion_generate_2026-10-28/); safe to drop
+      - onnx
+      - onnxscript
+      - triangle           # scripts/lottie2d/build_mesh.py and svg_to_mesh.py (constrained Delaunay); installed in the Mario env on 2026-10-27
+      # Anymate (scripts/rigging/anymate_*.py, ../Anymate): its code imports these
+      - omegaconf
+      - diffusers
+      - termcolor
+      - opencv-python-headless
+      - point-cloud-utils
+      - easydict

@@ -11,7 +11,7 @@ copied; `sources/` holds symlinks to `../Datasets` and `../Models`.
 | `templates_mesh2motion` | `Datasets/glb_mixamo` | 9 template rigs (bird, dragon, fish, fox, horse, human, kaiju, snake, spider), with skinned mesh and named clips |
 | `templates_skeleton_only` | `Datasets/glb` | the same 9 rigs, skeleton and clips only (kaiju also has a mesh) |
 | `unique_skeletons` | `Datasets/unique` | index of 3,456 unique skeletons (JSON + tree), no mesh or motion |
-| `models` | `Models` | Qwen3-VL-2B, InternVL3.5-2B, Qwen2.5 1.5B/3B, SAM 2/2.1/3 |
+| `models` | `Models` | Qwen3-VL-2B and 8B (step 1.2), SAM 2/2.1/3 (1.2), UniMate `unimate_uniml3d_f60_v3` (1.7, added 2026-10-29); InternVL3.5-2B and Qwen2.5 1.5B/3B moved to `../archive_2026-10-29/Models/` |
 
 macOS `._*` files are everywhere on this drive. Always skip names starting with `._`.
 
@@ -92,8 +92,8 @@ class (pick T- or A-pose), fps recorded, root motion kept.
 5. Write `meta.json` and `anims.json` (loop flag from clip name: walk, run, idle = true).
 6. Create train/val splits by character.
 
-## Embeddings (added 2026-10-20)
+## Embeddings (history)
 
-`data/embeddings/` holds CLIP text embeddings of all captions, joint-set and role features of the clips, and the motion embeddings
-(semantic, any body; decodable latent, biped and quadruped). See `docs/EMBED.md`. CLIP weights are in the Hugging Face cache
-(`openai/clip-vit-base-patch32`), not in the project.
+`data/embeddings/` held CLIP text embeddings of the captions, role features and the motion models of the 2026-10-20/22 experiments; they were moved out the same day. The code and the record of
+those experiments (`EMBED.md`) were archived on 2026-10-29 (`archive/pipeline_svg_2026-10-29/`, the files themselves under its `data/embeddings/`): the pipeline of the work plan (`docs/pipeline.html`) uses UniMate with a
+frozen flan-t5 text encoder, not these embeddings. The folder now holds only the Lottie files that the pipeline reads (`lottie_feats_index.csv`, `lottie_feats.npz`, `lottie_actions.csv`: `lottie_tokens.py`, `motion_coverage.py`, `lottie_actions.py`).

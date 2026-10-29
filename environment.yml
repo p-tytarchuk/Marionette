@@ -23,7 +23,7 @@ dependencies:
   - pytorch
   - torchvision
   - pip:
-      # captioning + VLM tooling for ../Models (Qwen3-VL-2B, InternVL3.5-2B, Qwen2.5 text models)
+      # VLM tooling for ../Models (Qwen3-VL-2B and 8B; vlm_tables.py, filter_side_view_animals.py) and for the UniMate text encoder (flan-t5, sentencepiece)
       - transformers>=4.57
       - accelerate
       - safetensors
@@ -32,14 +32,5 @@ dependencies:
       - einops
       - timm
       - qwen-vl-utils
-      - onnxruntime        # viewer/generate.html "mobile" mode (scripts/generate/mobile_runtime.py)
-      - onnx               # scripts/generate/export_onnx.py
-      - onnxscript
       - triangle           # scripts/lottie2d/build_mesh.py and svg_to_mesh.py (constrained Delaunay); installed in the Mario env on 2026-10-27
-      # Anymate (scripts/rigging/anymate_*.py, ../Anymate): its code imports these
-      - omegaconf
-      - diffusers
-      - termcolor
-      - opencv-python-headless
-      - point-cloud-utils
-      - easydict
+      - opencv-python-headless   # vlm_tables.py

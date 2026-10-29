@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Marionette Skeletons</title>
+<link rel="icon" href="data:,">
+<style>
+  :root { --bg:#14161a; --panel:#1b1e24; --line:#2a2e36; --text:#d8dce4; --dim:#8a92a0; --accent:#6ea8ff; --warn:#e8b04a; --good:#5fcf8a; --bad:#ef6b6b; }
+  * { box-sizing:border-box; }
+  html,body { margin:0; background:var(--bg); color:var(--text); font:13px/1.45 system-ui,-apple-system,sans-serif; }
+  a { color:var(--accent); }
+  .wrap { max-width:1560px; margin:0 auto; padding:16px 20px 36px; }
+  h1 { font-size:20px; margin:0 0 2px; } .sub { color:var(--dim); margin:0 0 12px; max-width:980px; }
+  .bar { display:flex; gap:14px; flex-wrap:wrap; align-items:center; background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:8px 12px; margin-bottom:12px; }
+  select,button { background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:6px; padding:5px 9px; font:inherit; }
+  button { cursor:pointer; } button:hover { border-color:var(--accent); color:var(--accent); }
+  input[type=range] { width:260px; vertical-align:middle; } .yaw { font-variant-numeric:tabular-nums; display:inline-block; min-width:34px; }
+  .layout { display:grid; grid-template-columns:minmax(0,1fr) 430px; gap:20px; align-items:start; }
+  @media (max-width:1150px) { .layout { grid-template-columns:1fr; } }
+  .cols { display:grid; grid-template-columns:1fr 1fr; gap:18px; } @media (max-width:760px) { .cols { grid-template-columns:1fr; } }
+  h2 { font-size:12px; text-transform:uppercase; letter-spacing:1.1px; color:var(--dim); margin:0 0 6px; font-weight:600; display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  h2 select { text-transform:none; letter-spacing:0; font-size:12px; } h2 .n { color:var(--dim); text-transform:none; letter-spacing:0; font-weight:400; }
+  .grid { display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:4px; cursor:pointer; min-width:0; } .card:hover { border-color:var(--accent); } .card.sel { border-color:var(--good); }
+  .card svg { width:100%; height:auto; display:block; background:#101216; border-radius:5px; }
+  .card .t { display:flex; justify-content:space-between; gap:6px; color:var(--dim); font-size:11px; padding:2px 3px 0; } .card .t b { color:var(--text); font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  aside { position:sticky; top:10px; max-height:calc(100vh - 20px); overflow:auto; background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px 14px; }
+  aside svg { width:100%; height:auto; background:#101216; border-radius:6px; }
+  .pill { display:inline-block; padding:0 8px; border-radius:999px; font-size:11px; border:1px solid var(--line); } .native { color:var(--good); border-color:var(--good); } .stylised { color:var(--warn); border-color:var(--warn); } .unsupported { color:var(--bad); border-color:var(--bad); }
+  table { border-collapse:collapse; width:100%; font-size:12px; } td { padding:2px 4px 2px 0; vertical-align:top; } td.r { color:var(--dim); }
+  .legend span { display:inline-flex; align-items:center; gap:4px; margin-right:10px; } .legend i { width:12px; height:3px; display:inline-block; border-radius:2px; }
+  .note { color:var(--dim); font-size:12px; margin:8px 0; } .kv { margin:6px 0; } .kv b { font-weight:600; }
+  #msg { color:var(--warn); min-height:18px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Skeletons: real and synthetic</h1>
+  <p class="sub">The skeletons of the real data next to the synthetic ones, drawn in 2D at the yaw you choose. Pick a class to compare. Click one to see its role labels, the class and the movement modes derived from them. <a href="/viewer/home.html">← menu</a></p>
+  <div class="bar">
+    <label>class <select id="cls"></select></label>
+    <label>yaw <input type="range" id="yaw" min="0" max="355" step="5" value="0"> <span class="yaw" id="yawv">0°</span></label>
+    <span class="dim" style="color:var(--dim)">0° = profile, 90° = front or back</span>
+    <label><input type="checkbox" id="roles" checked> colour by role</label>
+    <button id="shuffle">Reshuffle</button>
+    <span class="legend" id="legend"></span>
+  </div>
+  <div id="msg"></div>
+  <div class="layout">
+    <div>
+      <div class="cols">
+        <section><h2>Original data <select id="srcReal"></select> <span class="n" id="nReal"></span></h2><div class="grid" id="gridReal"></div></section>
+        <section><h2>Synthetic <select id="srcSyn"></select> <span class="n" id="nSyn"></span></h2><div class="grid" id="gridSyn"></div></section>
+      </div>
+      <p class="note">Role colours exist where the roles are known: every synthetic skeleton (by construction) and the Anymate predicted rigs (roles from <code>anymate_roles.py</code>). The other real skeletons have no role labels; their class is the dataset's own label (the manifest category, AnyTop's group, Qwen's body plan for Lottie rigs). Limbs on the far side of the body are drawn fainter. Lottie rigs are drawn in 2D already, so the yaw does not change them.</p>
+    </div>
+    <aside id="detail"><div class="note">Click a skeleton.</div></aside>
+  </div>
+</div>
+<script>
+const $ = id => document.getElementById(id);
+const KIND = { trunk:'#d8dce4', head:'#6ac04a', tail:'#c58a4a', leg:'#4a86e8', arm:'#e8744a', wing:'#b45ae0', fin:'#3cc8c8', extra:'#8a92a0' };
+let SRC = null, shown = { real:[], syn:[] }, cur = null, seedN = 1;
+
+async function api(path) {
+  const r = await fetch(path); const j = await r.json().catch(() => ({ error:'bad response' }));
+  if (!r.ok || j.error) throw new Error(j.error || ('HTTP ' + r.status)); return j;
+}
+function say(t) { $('msg').textContent = t || ''; }
+
+function project(p, yaw) {
+  if (p.length < 3) return [p[0], p[1], 0];
+  const f = yaw * Math.PI / 180, c = Math.cos(f), s = Math.sin(f);
+  return [p[2] * c + p[0] * s, p[1], p[0] * c - p[2] * s];          // x', height, depth toward the camera (the generator's own formula)
+}
+function svgFor(it, yaw, size, byRole) {
+  const Q = it.P.map(p => project(p, yaw)), pad = size * 0.07;
+  const xs = Q.map(q => q[0]), ys = Q.map(q => q[1]);
+  const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+  const w = Math.max(x1 - x0, 1e-6), h = Math.max(y1 - y0, 1e-6), s = (size - 2 * pad) / Math.max(w, h);
+  const ox = (size - w * s) / 2, oy = (size - h * s) / 2;
+  const X = q => ox + (q[0] - x0) * s, Y = q => size - oy - (q[1] - y0) * s;
+  const roles = byRole && it.parts && it.pj;
+  const far = {};
+  if (roles) it.parts.forEach((p, k) => { if (p.side === 'L' || p.side === 'R') { const u = it.pj.map((pk, j) => pk === k ? Q[j][2] : null).filter(v => v !== null); far[k] = u.length && u.reduce((a, b) => a + b, 0) / u.length < 0; } });
+  let lines = '', dots = '';
+  it.parents.forEach((pa, j) => {
+    if (pa >= 0) {
+      const k = roles ? it.pj[j] : -1, col = roles ? KIND[it.parts[k].kind] : '#9aa3b2';
+      lines += `<line x1="${X(Q[pa]).toFixed(1)}" y1="${Y(Q[pa]).toFixed(1)}" x2="${X(Q[j]).toFixed(1)}" y2="${Y(Q[j]).toFixed(1)}" stroke="${col}" stroke-width="${size > 250 ? 2.4 : 1.6}" stroke-linecap="round" opacity="${roles && far[k] ? 0.4 : 1}"/>`;
+    }
+    dots += `<circle cx="${X(Q[j]).toFixed(1)}" cy="${Y(Q[j]).toFixed(1)}" r="${size > 250 ? 2.6 : 1.5}" fill="${it.parents[j] < 0 ? '#ffd24a' : '#e8e8e8'}" opacity="${roles && far[it.pj[j]] ? 0.4 : 1}"/>`;
+  });
+  return `<svg viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg">${lines}${dots}</svg>`;
+}
+
+function card(it, side) {
+  const d = document.createElement('div'); d.className = 'card'; d.dataset.key = it.key;
+  d.innerHTML = svgFor(it, +$('yaw').value, 180, $('roles').checked) + `<div class="t"><b title="${it.key}">${it.detail}</b><span>${it.label} · ${it.nj}j${it.P[0].length < 3 ? ' · 2D' : ''}</span></div>`;
+  d.onclick = () => open(it.key);
+  return d;
+}
+function redraw() {
+  for (const [side, grid] of [['real', 'gridReal'], ['syn', 'gridSyn']]) { const g = $(grid); g.innerHTML = ''; shown[side].forEach(it => g.appendChild(card(it, side))); }
+  if (cur) { $('detail').querySelector('.big').innerHTML = svgFor(cur, +$('yaw').value, 400, $('roles').checked); document.querySelectorAll('.card').forEach(c => c.classList.toggle('sel', c.dataset.key === cur.key)); }
+}
+
+async function load(side) {
+  const cls = $('cls').value, real = side === 'real', src = $(real ? 'srcReal' : 'srcSyn').value;
+  const j = await api(`/api/skel_list?group=${real ? 'real' : 'synthetic'}&source=${encodeURIComponent(src)}&cls=${encodeURIComponent(cls)}&n=12&seed=${seedN}`);
+  shown[side] = j.items; $(real ? 'nReal' : 'nSyn').textContent = `${j.items.length} of ${j.total}`;
+}
+async function loadAll() { say(''); try { await Promise.all([load('real'), load('syn')]); redraw(); } catch (e) { say(e.message); } }
+
+function fillSources() {
+  const cls = $('cls').value;
+  $('srcReal').innerHTML = '<option value="all">all real sources</option>' + SRC.real.map(s => `<option value="${s.id}">${s.name} (${cls === 'all' ? s.n : (s.classes[cls] || 0)})</option>`).join('');
+  const vs = SRC.synthetic.variants.filter(v => cls === 'all' || v.cls === cls);
+  $('srcSyn').innerHTML = '<option value="all">all variants</option>' + vs.map(v => `<option value="${v.id}">${v.id}</option>`).join('');
+}
+
+async function open(key) {
+  try { cur = await api('/api/skel_item?key=' + encodeURIComponent(key)); } catch (e) { say(e.message); return; }
+  const it = cur, inf = it.info, el = $('detail');
+  let h = `<div class="big">${svgFor(it, +$('yaw').value, 400, $('roles').checked)}</div>`;
+  h += `<div class="kv"><b>${it.detail}</b> · ${it.source} · ${it.nj} joints${it.P[0].length < 3 ? ' · drawn in 2D' : ''}<br><span style="color:var(--dim)">${it.key}</span></div>`;
+  h += `<div class="kv">dataset label: <b>${it.label}</b></div>`;
+  if (it.parts) h += '<div class="legend">' + [...new Set(it.parts.map(p => p.kind))].map(k => `<span><i style="background:${KIND[k]}"></i>${k}</span>`).join('') + '</div>';
+  if (inf && inf.errors) h += `<div class="kv" style="color:var(--bad)">not a valid spec: ${inf.errors[0]}</div>`;
+  else if (inf) {
+    const c = inf.carriers;
+    h += `<div class="kv">class derived from the parts: <b>${inf.derived}</b> (${inf.reason})${inf.derived === it.label ? '' : ' <span style="color:var(--warn)">≠ dataset label</span>'}</div>`;
+    h += `<div class="kv">legs ${c.legs} (hips ${c.legs_pelvic}, shoulders ${c.legs_pectoral}) · arms ${c.arms} · wings ${c.wings} · fins ${c.fins} · tail ${c.tail ? 'yes' : 'no'} · trunk ${c.trunk_joints} joints, ${c.trunk_axis}</div>`;
+    h += '<table>' + Object.entries(inf.modes).map(([m, [lv, why]]) => `<tr><td>${m}</td><td><span class="pill ${lv}">${lv}</span></td><td class="r">${why}</td></tr>`).join('') + '</table>';
+  } else h += '<div class="note">No role labels for this skeleton, so no derived class or movement modes. Its class is the dataset\'s own label.</div>';
+  el.innerHTML = h; redraw();
+}
+
+$('yaw').oninput = () => { $('yawv').textContent = $('yaw').value + '°'; redraw(); };
+$('roles').onchange = redraw;
+$('cls').onchange = () => { fillSources(); loadAll(); };
+$('srcReal').onchange = () => load('real').then(redraw).catch(e => say(e.message));
+$('srcSyn').onchange = () => load('syn').then(redraw).catch(e => say(e.message));
+$('shuffle').onclick = () => { seedN = Math.floor(Math.random() * 1e6); loadAll(); };
+(async () => {
+  try { SRC = await api('/api/skel_sources'); } catch (e) { say(e.message); return; }
+  $('cls').innerHTML = '<option value="all">all classes</option>' + SRC.classes.map(c => `<option>${c}</option>`).join('');
+  $('legend').innerHTML = Object.entries(KIND).map(([k, c]) => `<span><i style="background:${c}"></i>${k}</span>`).join('');
+  fillSources(); loadAll();
+})();
+</script>
+</body>
+</html>

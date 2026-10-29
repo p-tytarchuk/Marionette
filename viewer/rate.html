@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Marionette Rate</title>
+<link rel="icon" href="data:,">
+<style>
+  :root { --bg:#14161a; --panel:#1b1e24; --line:#2a2e36; --text:#d8dce4; --dim:#8a92a0; --accent:#6ea8ff; --warn:#e8b04a; --good:#5fcf8a; --bad:#ef6b6b; }
+  * { box-sizing:border-box; }
+  html,body { margin:0; background:var(--bg); color:var(--text); font:14px/1.5 system-ui,-apple-system,sans-serif; }
+  a { color:var(--accent); }
+  .wrap { max-width:1500px; margin:0 auto; padding:14px 20px 30px; }
+  .top { display:flex; gap:14px; align-items:center; flex-wrap:wrap; margin-bottom:8px; }
+  h1 { font-size:18px; margin:0; } .dim { color:var(--dim); }
+  .bar { flex:1; min-width:160px; height:6px; background:var(--panel); border-radius:3px; overflow:hidden; } .bar i { display:block; height:100%; background:var(--accent); width:0; }
+  button { background:var(--accent); color:#0c1220; border:0; border-radius:8px; padding:8px 16px; font:inherit; font-weight:600; cursor:pointer; }
+  button.ghost { background:var(--panel); color:var(--text); border:1px solid var(--line); font-weight:400; padding:6px 12px; }
+  button:disabled { opacity:.35; cursor:default; }
+  input,select,textarea { background:var(--panel); color:var(--text); border:1px solid var(--line); border-radius:6px; padding:7px 9px; font:inherit; }
+  #start { max-width:640px; margin:40px auto; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:20px 22px; }
+  #start label { display:block; margin:12px 0 4px; color:var(--dim); } #start select,#start input { width:100%; }
+  .cols { display:grid; grid-template-columns:minmax(0,1fr) 400px; gap:20px; align-items:start; }
+  @media (max-width:1000px) { .cols { grid-template-columns:1fr; } }
+  #prompt { font-size:22px; line-height:1.35; background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px 18px; margin-bottom:12px; }
+  #prompt small { display:block; color:var(--dim); font-size:11px; text-transform:uppercase; letter-spacing:1px; margin-bottom:4px; }
+  .media { display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:10px; }
+  .media figure { margin:0; background:#0e1013; border:1px solid var(--line); border-radius:8px; overflow:hidden; text-align:center; }
+  .media img,.media video { max-width:100%; max-height:64vh; object-fit:contain; display:block; margin:0 auto; cursor:zoom-in; }
+  .media video { cursor:default; }
+  .media figcaption { color:var(--dim); font-size:11px; padding:3px 6px; }
+  .pair { display:grid; grid-template-columns:1fr 1fr; gap:14px; } .pair h3 { margin:0 0 6px; font-size:12px; letter-spacing:1px; text-transform:uppercase; color:var(--dim); }
+  .pair .side { border:2px solid transparent; border-radius:10px; padding:6px; } .pair .side.pick { border-color:var(--good); }
+  aside { position:sticky; top:10px; max-height:calc(100vh - 20px); overflow:auto; background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px 14px; }
+  .axis { border:1px solid var(--line); border-radius:8px; padding:8px 10px; margin-bottom:8px; opacity:.6; } .axis.cur { opacity:1; border-color:var(--accent); } .axis.na { opacity:.3; }
+  .axis .name { display:flex; justify-content:space-between; font-weight:600; } .axis .q { color:var(--dim); font-size:12px; margin:2px 0 6px; }
+  .axis .anc { color:var(--dim); font-size:11px; margin-top:6px; } .axis .anc b { color:var(--text); font-weight:600; }
+  .scores { display:flex; gap:6px; } .scores button { flex:1; background:#0e1013; color:var(--text); border:1px solid var(--line); padding:7px 0; font-weight:600; }
+  .scores button.sel { background:var(--accent); color:#0c1220; border-color:var(--accent); } .scores button.nb { flex:.7; font-weight:400; font-size:12px; }
+  .choices { display:flex; gap:8px; } .choices button { flex:1; background:#0e1013; color:var(--text); border:1px solid var(--line); } .choices button.sel { background:var(--good); color:#0c1220; border-color:var(--good); }
+  textarea { width:100%; height:52px; resize:vertical; margin-top:6px; }
+  .row { display:flex; gap:8px; align-items:center; margin-top:8px; } .row .grow { flex:1; }
+  #msg { color:var(--warn); min-height:20px; margin:4px 0; } #msg.err { color:var(--bad); }
+  .banner { border:1px solid var(--line); border-left:3px solid var(--warn); border-radius:6px; padding:5px 10px; color:var(--dim); margin:0 0 10px; }
+  .overlay { position:fixed; inset:0; background:rgba(8,9,11,.93); z-index:10; overflow:auto; padding:30px; }
+  .overlay img { max-width:96vw; max-height:92vh; display:block; margin:0 auto; }
+  #anchors h2 { margin:0 0 4px; } #anchors .grp { margin:14px 0; } #anchors .items { display:flex; gap:12px; flex-wrap:wrap; } #anchors figure { margin:0; width:230px; } #anchors img,#anchors video { width:100%; border-radius:6px; }
+  .keys { color:var(--dim); font-size:12px; margin-top:10px; } kbd { background:var(--panel); border:1px solid var(--line); border-bottom-width:2px; border-radius:4px; padding:0 5px; font:11px ui-monospace,monospace; color:var(--text); }
+  #done { text-align:center; margin:60px auto; max-width:560px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <h1>Rate</h1><span class="dim" id="setTitle"></span>
+    <div class="bar"><i id="barFill"></i></div>
+    <span id="progress" class="dim"></span><span id="timer" class="dim"></span>
+    <button class="ghost" id="helpBtn" title="show the keys">Keys ?</button>
+    <a href="/viewer/home.html">← menu</a>
+  </div>
+
+  <div id="start" hidden>
+    <h2 style="margin-top:0">Start rating</h2>
+    <p class="dim">Pick a rating set (a folder under <code>data/eval/</code> with <code>set.json</code> and <code>items.jsonl</code>) and type your rater name. Your ratings are appended to that folder's <code>human.jsonl</code>; nothing is ever overwritten.</p>
+    <label for="setSel">Rating set</label><select id="setSel"></select>
+    <label for="raterIn">Rater name (letters, digits, - or _)</label><input id="raterIn" maxlength="24" autocomplete="off">
+    <p id="startMsg" class="dim"></p>
+    <button id="startBtn">Start</button>
+  </div>
+
+  <div id="msg"></div>
+  <div id="main" hidden>
+    <div class="banner" id="reviewBanner" hidden></div>
+    <div class="cols">
+      <section>
+        <div id="prompt"></div>
+        <div id="stage"></div>
+      </section>
+      <aside>
+        <div id="axes"></div>
+        <textarea id="comment" placeholder="comment (optional, one line)" maxlength="300"></textarea>
+        <div class="row">
+          <button class="ghost" id="cjBtn" title="x">Can't judge</button>
+          <button class="ghost" id="anchorBtn" title="a">Anchors</button>
+          <span class="grow"></span>
+          <button id="submitBtn" disabled>Save and next ⏎</button>
+        </div>
+        <div class="keys" id="keys"></div>
+      </aside>
+    </div>
+  </div>
+  <div id="done" hidden>
+    <h2>All items rated</h2><p class="dim" id="doneText"></p>
+    <button class="ghost" id="reviewBtn">Go back through the items</button>
+  </div>
+</div>
+<div id="anchors" class="overlay" hidden></div>
+<div id="zoom" class="overlay" hidden></div>
+<script>
+const $ = id => document.getElementById(id);
+const qs = new URLSearchParams(location.search);
+const KEYS_SCORES = '<kbd>1</kbd>-<kbd>5</kbd> score the highlighted axis and move on · <kbd>0</kbd>/<kbd>n</kbd> not applicable · <kbd>↑</kbd>/<kbd>Backspace</kbd> previous axis · <kbd>⏎</kbd> save · <kbd>x</kbd> can\'t judge · <kbd>a</kbd> anchors · <kbd>c</kbd> comment · <kbd>[</kbd> <kbd>]</kbd> previous / next item · <kbd>space</kbd> play / pause';
+const KEYS_PAIR = '<kbd>1</kbd> left is better · <kbd>2</kbd> right is better · <kbd>3</kbd> tie · <kbd>⏎</kbd> save · <kbd>x</kbd> can\'t judge · <kbd>c</kbd> comment · <kbd>[</kbd> <kbd>]</kbd> previous / next item · <kbd>space</kbd> play / pause';
+
+let SETPATH = qs.get('set') || '', RATER = qs.get('rater') || localStorage.getItem('rate_rater') || '';
+let S = null, items = [], idx = 0, st = null, t0 = 0, session = 0, busy = false;
+
+function say(text, err) { const m = $('msg'); m.textContent = text || ''; m.className = err ? 'err' : ''; }
+async function api(path, body) {
+  const r = await fetch(path, body ? { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) } : undefined);
+  const j = await r.json().catch(() => ({ error:'bad response' }));
+  if (!r.ok || j.error) throw new Error(j.error || ('HTTP ' + r.status));
+  return j;
+}
+
+// ---- start screen ----
+async function showStart() {
+  $('start').hidden = false;
+  $('raterIn').value = RATER;
+  try {
+    const sets = await api('/api/rate_sets');
+    $('setSel').innerHTML = sets.map(s => `<option>${s}</option>`).join('');
+    if (SETPATH && sets.includes(SETPATH)) $('setSel').value = SETPATH;
+    $('startMsg').textContent = sets.length ? '' : 'No rating set found under data/eval/. A demo set: python scripts/tools/make_demo_rating_set.py';
+    $('startBtn').disabled = !sets.length;
+  } catch (e) { $('startMsg').textContent = e.message; }
+}
+$('startBtn').onclick = () => {
+  const r = $('raterIn').value.trim();
+  if (!/^[A-Za-z0-9_-]{1,24}$/.test(r)) { $('startMsg').textContent = 'The rater name must be 1-24 letters, digits, - or _.'; return; }
+  localStorage.setItem('rate_rater', r);
+  location.search = '?set=' + encodeURIComponent($('setSel').value) + '&rater=' + encodeURIComponent(r);
+};
+
+// ---- loading ----
+async function load() {
+  try {
+    const j = await api('/api/rate_set?set=' + encodeURIComponent(SETPATH) + '&rater=' + encodeURIComponent(RATER));
+    S = j.set; items = j.items;
+  } catch (e) { say(e.message, true); showStart(); return; }
+  localStorage.setItem('rate_rater', RATER);
+  const sk = 'rate_session_' + SETPATH + '_' + RATER;
+  session = (parseInt(localStorage.getItem(sk) || '0', 10) || 0) + 1; localStorage.setItem(sk, String(session));
+  $('setTitle').textContent = (S.title || SETPATH) + ' · ' + RATER + ' · session ' + session;
+  $('keys').innerHTML = S.mode === 'pairwise' ? KEYS_PAIR : KEYS_SCORES;
+  $('anchorBtn').hidden = !(S.anchor_items && S.anchor_items.length);
+  idx = items.findIndex(it => !it.done);
+  if (idx < 0) return finished();
+  show(idx);
+}
+function nDone() { return items.filter(it => it.done).length; }
+function progress() {
+  $('progress').textContent = nDone() + ' / ' + items.length + ' rated';
+  $('barFill').style.width = (items.length ? 100 * nDone() / items.length : 0) + '%';
+}
+function finished() {
+  $('main').hidden = true; $('done').hidden = false; progress();
+  $('doneText').textContent = items.length + ' items rated by ' + RATER + '. The ratings are in data/eval/' + SETPATH + '/human.jsonl.';
+}
+$('reviewBtn').onclick = () => { $('done').hidden = true; show(items.length - 1); };
+
+// ---- one item ----
+function mediaEl(m) {
+  const f = document.createElement('figure');
+  if (m.type === 'video') { const v = document.createElement('video'); v.src = m.url; v.controls = true; v.loop = true; v.muted = true; v.autoplay = true; v.playsInline = true; f.appendChild(v); }
+  else { const i = document.createElement('img'); i.src = m.url; i.alt = m.label || ''; i.onclick = () => zoom(m.url); f.appendChild(i); }
+  if (m.label) { const c = document.createElement('figcaption'); c.textContent = m.label; f.appendChild(c); }
+  return f;
+}
+function mediaBlock(list) { const d = document.createElement('div'); d.className = 'media'; list.forEach(m => d.appendChild(mediaEl(m))); return d; }
+
+function show(i) {
+  idx = Math.max(0, Math.min(items.length - 1, i));
+  const it = items[idx];
+  $('done').hidden = true; $('main').hidden = false; say('');
+  $('prompt').innerHTML = '<small>' + (S.mode === 'pairwise' ? 'Prompt · which output is better?' : 'Prompt') + ' · item ' + (idx + 1) + ' of ' + items.length + '</small>';
+  const pt = document.createElement('span'); pt.textContent = it.prompt; $('prompt').appendChild(pt);
+  const stage = $('stage'); stage.innerHTML = '';
+  if (S.mode === 'pairwise') {
+    const pair = document.createElement('div'); pair.className = 'pair';
+    [['left', it.left], ['right', it.right]].forEach(([name, list]) => {
+      const side = document.createElement('div'); side.className = 'side'; side.id = 'side_' + name;
+      side.innerHTML = '<h3>' + (name === 'left' ? '1 · left' : '2 · right') + '</h3>'; side.appendChild(mediaBlock(list)); pair.appendChild(side);
+    });
+    stage.appendChild(pair);
+  } else stage.appendChild(mediaBlock(it.media));
+  // preload the next item's images
+  const nx = items[idx + 1]; if (nx) (nx.media || [...nx.left, ...nx.right]).filter(m => m.type === 'image').forEach(m => { new Image().src = m.url; });
+
+  st = { scores:{}, axis:0, cannot:false, choice:null };
+  if (S.mode !== 'pairwise') { const first = S.axes.findIndex(a => !it.skip_axes.includes(a.key)); st.axis = Math.max(0, first); }
+  $('comment').value = '';
+  const rb = $('reviewBanner');
+  rb.hidden = !it.done; if (it.done) rb.textContent = 'This item was already rated (' + it.done + (it.done === 1 ? ' time' : ' times') + '). Saving adds a new row with a higher revision; the earlier one stays.';
+  t0 = Date.now(); progress(); renderAxes();
+}
+
+function applicable(a) { return !items[idx].skip_axes.includes(a.key); }
+function complete() {
+  if (st.cannot) return true;
+  if (S.mode === 'pairwise') return !!st.choice;
+  return S.axes.every(a => !applicable(a) || st.scores[a.key] !== undefined);
+}
+function renderAxes() {
+  const box = $('axes'); box.innerHTML = '';
+  $('cjBtn').style.borderColor = st.cannot ? 'var(--warn)' : '';
+  if (S.mode === 'pairwise') {
+    const d = document.createElement('div'); d.className = 'axis cur';
+    d.innerHTML = '<div class="name">Which is better?</div><div class="q">' + (S.instructions || 'Judge the outputs for the prompt above.') + '</div>';
+    const c = document.createElement('div'); c.className = 'choices';
+    [['left', '1 · left'], ['tie', '3 · tie'], ['right', '2 · right']].forEach(([v, l]) => { const b = document.createElement('button'); b.textContent = l; if (st.choice === v) b.classList.add('sel'); b.onclick = () => pick(v); c.appendChild(b); });
+    d.appendChild(c); box.appendChild(d);
+    ['left', 'right'].forEach(n => { const s = $('side_' + n); if (s) s.classList.toggle('pick', st.choice === n); });
+  } else {
+    S.axes.forEach((a, k) => {
+      const na = !applicable(a), d = document.createElement('div'); d.className = 'axis' + (k === st.axis && !na ? ' cur' : '') + (na ? ' na' : '');
+      const cur = st.scores[a.key];
+      d.innerHTML = '<div class="name"><span>' + a.label + '</span><span class="dim">' + (na ? 'n/a for this item' : (cur === null ? 'n/a' : (cur === undefined ? '' : cur))) + '</span></div><div class="q">' + a.question + '</div>';
+      if (!na) {
+        const sc = document.createElement('div'); sc.className = 'scores';
+        for (let v = 1; v <= 5; v++) { const b = document.createElement('button'); b.textContent = v; if (cur === v) b.classList.add('sel'); b.onclick = () => setScore(k, v); sc.appendChild(b); }
+        if (a.nullable) { const b = document.createElement('button'); b.className = 'nb' + (cur === null ? ' sel' : ''); b.textContent = 'n/a'; b.onclick = () => setScore(k, null); sc.appendChild(b); }
+        d.appendChild(sc);
+        if (k === st.axis && a.anchors) d.insertAdjacentHTML('beforeend', '<div class="anc">' + Object.entries(a.anchors).map(([n, t]) => '<b>' + n + '</b> ' + t).join(' · ') + '</div>');
+      }
+      d.onclick = ev => { if (!ev.target.closest('button') && !na) { st.axis = k; renderAxes(); } };
+      box.appendChild(d);
+    });
+  }
+  $('submitBtn').disabled = !complete() || busy;
+}
+function nextAxis(from) { for (let k = from + 1; k < S.axes.length; k++) if (applicable(S.axes[k])) return k; return -1; }
+function prevAxis(from) { for (let k = from - 1; k >= 0; k--) if (applicable(S.axes[k])) return k; return -1; }
+function setScore(k, v) {
+  st.scores[S.axes[k].key] = v; st.axis = k;
+  const n = nextAxis(k); if (n >= 0) st.axis = n;
+  renderAxes();
+}
+function pick(v) { st.choice = v; renderAxes(); }
+
+// ---- saving ----
+async function submit() {
+  if (busy || !complete()) return;
+  busy = true; $('submitBtn').disabled = true;
+  const it = items[idx];
+  const body = { set:SETPATH, rater:RATER, session, id:it.id, cannot_judge:st.cannot, comment:$('comment').value, seconds:(Date.now() - t0) / 1000 };
+  if (S.mode === 'pairwise') body.choice = st.cannot ? null : st.choice; else body.scores = st.cannot ? {} : Object.fromEntries(Object.entries(st.scores));
+  try {
+    await api('/api/rate_save', body);
+    it.done += 1; say('');
+    const nxt = items.findIndex((x, j) => j > idx && !x.done);
+    busy = false;
+    if (nxt >= 0) show(nxt); else if (items.every(x => x.done)) finished(); else show(Math.min(idx + 1, items.length - 1));
+  } catch (e) { busy = false; say('Not saved: ' + e.message, true); renderAxes(); }
+}
+$('submitBtn').onclick = submit;
+$('cjBtn').onclick = () => { st.cannot = !st.cannot; renderAxes(); };
+
+// ---- anchors, zoom, keys ----
+function showAnchors() {
+  const ov = $('anchors'); if (!S || !S.anchor_items || !S.anchor_items.length) { say('This set has no anchor items.'); return; }
+  const cur = S.mode === 'pairwise' ? null : S.axes[st.axis].key;
+  const list = S.anchor_items.filter(a => !cur || a.axis === cur);
+  ov.innerHTML = '<h2>Anchor examples' + (cur ? ' · ' + S.axes[st.axis].label : '') + '</h2><p class="dim">Rated by agreement before the session. Press <kbd>a</kbd> or <kbd>Esc</kbd> to close.</p>';
+  [1, 2, 3, 4, 5].forEach(sc => {
+    const g = list.filter(a => a.score === sc); if (!g.length) return;
+    const d = document.createElement('div'); d.className = 'grp'; d.innerHTML = '<h3>Score ' + sc + '</h3>';
+    const row = document.createElement('div'); row.className = 'items';
+    g.forEach(a => { const f = mediaEl(a.media[0] || { type:'image', url:'' }); f.style.width = '230px'; if (a.caption) { const c = document.createElement('div'); c.className = 'dim'; c.textContent = a.caption; f.appendChild(c); } row.appendChild(f); });
+    d.appendChild(row); ov.appendChild(d);
+  });
+  ov.hidden = false;
+}
+function zoom(url) { const z = $('zoom'); z.innerHTML = '<img src="' + url + '" alt="">'; z.hidden = false; z.onclick = () => { z.hidden = true; }; }
+$('anchorBtn').onclick = () => { $('anchors').hidden ? showAnchors() : ($('anchors').hidden = true); };
+$('helpBtn').onclick = () => { const k = $('keys'); k.style.display = k.style.display === 'none' ? '' : 'none'; };
+
+document.addEventListener('keydown', ev => {
+  if (!S || $('main').hidden && $('done').hidden) return;
+  if (ev.key === 'Escape') { $('zoom').hidden = true; $('anchors').hidden = true; if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); return; }
+  const typing = ['TEXTAREA', 'INPUT'].includes(document.activeElement && document.activeElement.tagName);
+  if (typing) { if (ev.key === 'Enter' && (ev.ctrlKey || ev.metaKey)) { ev.preventDefault(); submit(); } return; }
+  if (ev.ctrlKey || ev.metaKey || ev.altKey || $('main').hidden) return;
+  const k = ev.key;
+  if (k === 'a' && S.mode !== 'pairwise') { ev.preventDefault(); $('anchorBtn').click(); return; }
+  if (k === 'x') { st.cannot = !st.cannot; renderAxes(); return; }
+  if (k === 'c') { ev.preventDefault(); $('comment').focus(); return; }
+  if (k === '[') { show(idx - 1); return; }
+  if (k === ']') { show(idx + 1); return; }
+  if (k === ' ') { ev.preventDefault(); document.querySelectorAll('#stage video').forEach(v => v.paused ? v.play() : v.pause()); return; }
+  if (k === 'Enter') { ev.preventDefault(); submit(); return; }
+  if (S.mode === 'pairwise') { if (k === '1') pick('left'); else if (k === '2') pick('right'); else if (k === '3') pick('tie'); return; }
+  if (k >= '1' && k <= '5') { setScore(st.axis, parseInt(k, 10)); return; }
+  if (k === '0' || k === 'n') { if (S.axes[st.axis].nullable) setScore(st.axis, null); return; }
+  if (k === 'Backspace' || k === 'ArrowUp') { ev.preventDefault(); const p = prevAxis(st.axis); if (p >= 0) { st.axis = p; renderAxes(); } return; }
+  if (k === 'ArrowDown') { ev.preventDefault(); const n = nextAxis(st.axis); if (n >= 0) { st.axis = n; renderAxes(); } return; }
+});
+setInterval(() => { if (S && !$('main').hidden) { const s = Math.floor((Date.now() - t0) / 1000); $('timer').textContent = Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); } }, 500);
+
+if (SETPATH && RATER) load(); else showStart();
+</script>
+</body>
+</html>

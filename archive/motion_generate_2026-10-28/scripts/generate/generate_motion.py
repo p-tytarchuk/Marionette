@@ -64,6 +64,46 @@ MAX_SPIKES, MAX_STEP, ROT_RANGE = 1, 100.0, 300.0
 LAND_UP, LAND_FRAMES = 0.8, 8
 
 
+def gate_report(prompt, quality, land=True):
+    """The candidate gate applied to the quality that generate() stores with a clip (decoded.quality: spikes, max_step_deg, pitch_range_deg, landing_up), whether or not the gate was on when the clip was made
+    (tries 1 means no choice among candidates, not that the clip would fail). Returns None for a clip without stored quality (older clips, dataset clips), else dict(passed, reasons, needs_rotation). The stored step, range and
+    landing are rounded, so a value within the rounding of a limit can differ from the float comparison made while generating."""
+    if not isinstance(quality, dict) or quality.get("spikes") is None:
+        return None
+    sp, mx, rng, lu = quality.get("spikes"), quality.get("max_step_deg"), quality.get("pitch_range_deg"), quality.get("landing_up")
+    need = bool(needs_rotation(prompt or ""))
+    reasons = []
+    if sp > MAX_SPIKES:
+        reasons.append(f"{sp} rotation steps over 60 degrees (the gate allows {MAX_SPIKES})")
+    if mx is not None and mx > MAX_STEP:
+        reasons.append(f"largest rotation step {mx} degrees (the gate allows {MAX_STEP:g})")
+    if need and rng is not None and rng < ROT_RANGE:
+        reasons.append(f"the body turns only {rng} degrees (a flip must turn {ROT_RANGE:g})")
+    if need and land and lu is not None and lu < LAND_UP:
+        reasons.append(f"ends {lu} upright (a flip must end at {LAND_UP} or more)")
+    return dict(passed=not reasons, reasons=reasons, needs_rotation=need)
+
+
+def _gate_selftest():
+    flip = "An object does a front flip."
+    # the clip traced on 2026-10-28 (seed 11, one candidate): a smooth proxy, but a 135-degree turn that ends lying down
+    r = gate_report(flip, dict(spikes=1, max_step_deg=95, pitch_range_deg=135, landing_up=-0.14))
+    assert r and not r["passed"] and len(r["reasons"]) == 2 and r["needs_rotation"], r
+    # candidate 2 of the same seed with the rewritten prompt: a clean flip
+    r = gate_report("An object performs a front flip.", dict(spikes=0, max_step_deg=47, pitch_range_deg=359, landing_up=0.96))
+    assert r and r["passed"] and not r["reasons"], r
+    # a prompt that needs no turn is not held to one
+    r = gate_report("An object waves.", dict(spikes=0, max_step_deg=20, pitch_range_deg=5, landing_up=0.1))
+    assert r and r["passed"] and not r["needs_rotation"], r
+    # too many spikes or a step over the limit fails any prompt; --no-landing style: land=False ignores the landing
+    assert not gate_report("An object waves.", dict(spikes=MAX_SPIKES + 1, max_step_deg=20))["passed"]
+    assert not gate_report("An object waves.", dict(spikes=0, max_step_deg=MAX_STEP + 1))["passed"]
+    assert gate_report(flip, dict(spikes=0, max_step_deg=40, pitch_range_deg=340, landing_up=0.1), land=False)["passed"]
+    # no stored quality: no verdict
+    assert gate_report(flip, None) is None and gate_report(flip, {}) is None
+    print("generate_motion gate_report self-test: the traced bad clip fails twice, the clean candidate passes, non-flip prompts are not held to a turn, limits and missing data behave")
+
+
 def body_up(x, n, DC):
     """The hips' own up axis in the heading frame, (n, 3): y is 1 when the body is upright, 0 on its side, -1 upside down."""
     from scipy.spatial.transform import Rotation as Rot
@@ -127,7 +167,20 @@ def _load():
     return _state
 
 
-def generate(prompt, target, guidance=2.0, seed=0, mode="auto", rewrite=True, smooth=3.0, znorm=0.9, tries=4, straight=0, land=True, frontend="rules", runtime="desktop", threads=4, keep_proxy=False):
+def sample_step_cap(S, E, guidance, seed, factor, k=40):
+    """Plain sampling (DDIM, classifier-free guidance) with the clean-latent estimate capped at EVERY step to `factor` x the mean |z| of the k training clips whose captions are nearest to the prompt (the target of
+    cap_latent_norm), instead of rescaling the finished latent. scripts/generate/flip_sweep.py: more completed, upright flips than the cap after sampling (22% / 21% against 12% / 15% of single samples for a front flip and
+    a backflip), but more spikes; scripts/generate/step_cap_check.py: the side effects on the held-out prompts. Opt-in (step_cap > 0); desktop runtime only."""
+    import torch
+    c = S["c"]
+    cap_latent_norm(np.ones((1, 256), np.float32), E, S, 1.0)           # fills S["z_norm"] (the training latents' norms) on first use
+    T, nrm = S["z_norm"]
+    tgt = factor * float(nrm[np.argsort(-(T @ E[0]))[:k]].mean())
+    fn = lambda x0, i, n: x0 * torch.clamp(tgt / x0.norm(dim=-1, keepdim=True).clamp_min(1e-6), max=1.0)
+    return c.DT.sample(c.model, c.torch, c.dev, E, guidance=guidance, seed=seed, steps=50, x0_fn=fn)
+
+
+def generate(prompt, target, guidance=2.0, seed=0, mode="auto", rewrite=True, smooth=3.0, znorm=0.9, tries=4, straight=0, land=True, frontend="rules", runtime="desktop", threads=4, keep_proxy=False, step_cap=0.0):
     """One sample for a prompt, put on `target` (a character folder name). Returns what the viewers need plus the retargeter's metrics.
     rewrite: first turn the prompt into the dataset's caption wording (the original is returned as `typed`, the text used as `prompt`).
     smooth: sigma (stored frames) of the body-frame low-pass on the decoded limb joints before IK (decoded_to_character.body_frame_filter); 0 = off. Generated flips have about 16 rotation
@@ -188,13 +241,16 @@ def generate(prompt, target, guidance=2.0, seed=0, mode="auto", rewrite=True, sm
         kw = dict(plain=dict(k=None),
                   walk=dict(k=0.5, exact=True, keep_gait=True),
                   run=dict(k=0.5, exact=True, keep_gait=True, dur_k=1.0, cap_q=0.9))[mode_used]
+        scap = step_cap if mode_used == "plain" else 0
+        if scap and runtime == "mobile":
+            raise ValueError("the cap inside the sampler is not ported to the mobile runtime")
         zcap = znorm if mode_used == "plain" else 0          # walk/run keep their validated constraints (the cap changes their speed and duration, docs/EMBED.md "Latent norm")
         ntry = max(1, int(tries)) if mode_used == "plain" else 1
         need_rot = ntry > 1 and needs_rotation(prompt)
         cands = []
         for k in range(ntry):
             t1 = time.perf_counter()
-            zn = mob.sample(E, guidance, seed + 7919 * k) if mob else sm.sample(E, guidance=guidance, seed=seed + 7919 * k, **kw)
+            zn = mob.sample(E, guidance, seed + 7919 * k) if mob else (sample_step_cap(S, E, guidance, seed + 7919 * k, scap) if scap else sm.sample(E, guidance=guidance, seed=seed + 7919 * k, **kw))
             zn = cap_latent_norm(zn, E, S, zcap)
             t2 = time.perf_counter()
             X, nv_, du_ = (mob or c).decode(zn * c.zs + c.zm)
@@ -222,7 +278,7 @@ def generate(prompt, target, guidance=2.0, seed=0, mode="auto", rewrite=True, sm
         gen_s = time.time() - t0
         spd = float(np.abs(x[:nv, 0]).sum() / dur)
         slug = re.sub(r"[^a-z0-9]+", "_", prompt.lower()).strip("_")[:30]
-        label = f"gen_{slug}_s{seed}_g{guidance:g}_{mode_used}" + (f"_sm{smooth:g}" if smooth else "") + (f"_zn{zcap:g}" if zcap else "") + (f"_t{kbest}" if kbest else "") + (f"_st{straight}" if straight else "")      # the slug is of the text the model saw (rewritten or as typed)
+        label = f"gen_{slug}_s{seed}_g{guidance:g}_{mode_used}" + (f"_sm{smooth:g}" if smooth else "") + (f"_zn{zcap:g}" if zcap else "") + (f"_sc{scap:g}" if scap else "") + (f"_t{kbest}" if kbest else "") + (f"_st{straight}" if straight else "")      # the slug is of the text the model saw (rewritten or as typed)
         path = DC.OUT_DIR / f"{label}.glb"
         t1 = time.perf_counter()
         if target is None:
@@ -230,17 +286,19 @@ def generate(prompt, target, guidance=2.0, seed=0, mode="auto", rewrite=True, sm
         else:
             DC.write_proxy(path, px, S["ref"], label)
             info = DC.to_character(path, target, label, prompt, S["ref"],
-                                   extra=dict(kind="generated", prompt=prompt, typed=typed, guidance=guidance, seed=seed, mode=mode_used, smooth=smooth, znorm=zcap, tries_used=kbest + 1, quality=quality, straight=straight))
+                                   extra=dict(kind="generated", prompt=prompt, typed=typed, guidance=guidance, seed=seed, mode=mode_used, smooth=smooth, znorm=zcap, step_cap=scap, tries_used=kbest + 1, quality=quality, straight=straight))
         tm["retarget"] = time.perf_counter() - t1
         timing = {k: round(1000 * v, 1) for k, v in tm.items()}
         timing.update(one_time_load=round(load_ms, 1), total=round(1000 * (time.perf_counter() - T0), 1), candidates=len(cands), runtime=("mobile" if mob else "desktop"), threads=int(threads) if mob else None)
         extra_out = dict(proxy=px, ref=S["ref"]) if keep_proxy else {}
-        return dict(**extra_out, timing_ms=timing, mobile_note=mobile_note, target=target, name=f"rt__dec_{label}", prompt=prompt, typed=typed, mode=mode_used, guidance=guidance, seed=seed, smooth=smooth, znorm=zcap, tries_used=kbest + 1, gate_passed=bool(best[0]), quality=quality, straight=straight, land=land, frontend=frontend if rewrite else "off",
+        return dict(**extra_out, timing_ms=timing, mobile_note=mobile_note, target=target, name=f"rt__dec_{label}", prompt=prompt, typed=typed, mode=mode_used, guidance=guidance, seed=seed, smooth=smooth, znorm=zcap, step_cap=scap, tries_used=kbest + 1, gate_passed=bool(best[0]), quality=quality, straight=straight, land=land, frontend=frontend if rewrite else "off",
                     duration_s=round(dur, 2), speed_hips_h_per_s=round(spd, 2), generate_s=round(gen_s, 1), load_s=S["load_s"],
                     metrics={k: (round(v, 4) if isinstance(v, float) else v) for k, v in info.items() if isinstance(v, (int, float, str))})
 
 
 def main():
+    if "--gate-selftest" in sys.argv:
+        return _gate_selftest()
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("prompt")
     ap.add_argument("--target", default="mixamo_Aciana")
@@ -250,6 +308,7 @@ def main():
     ap.add_argument("--no-rewrite", action="store_true", help="use the prompt as typed")
     ap.add_argument("--frontend", choices=["rules", "llm"], default="rules", help="how the prompt is rewritten into the dataset's wording: rules (no language model) or the Qwen2.5-1.5B LLM"),
     ap.add_argument("--smooth", type=float, default=3.0, help="body-frame smoothing of the decoded limbs, frames (0 = off)")
+    ap.add_argument("--step-cap", type=float, default=0.0, help="plain mode, opt-in: cap the latent inside every denoising step at this x the neighbours' mean norm (see sample_step_cap; 0 = off)")
     ap.add_argument("--znorm", type=float, default=0.9, help="plain mode: cap |z| at this x the mean norm of the prompt's nearest training latents (0 = off), see cap_latent_norm")
     ap.add_argument("--straight", type=int, choices=[0, 1, 2], default=0, help="straight-line motion: 1 = zero sideways velocity and yaw rate of the decoded clip, 2 = also keep only the pitch of the hips tilt (see straighten)")
     ap.add_argument("--mobile", action="store_true", help="run the models as a phone would: ONNX Runtime on the CPU, int8 denoiser + decoder (needs data/mobile, see mobile_runtime.py)")
@@ -257,7 +316,7 @@ def main():
     ap.add_argument("--no-landing", action="store_true", help="flip prompts: do not require an upright ending in the gate (see LAND_UP)")
     ap.add_argument("--tries", type=int, default=4, help="plain mode: draw up to this many candidates and keep the first that passes the quality gate (1 = off), see MAX_SPIKES in generate_motion.py")
     a = ap.parse_args()
-    r = generate(a.prompt, a.target, a.guidance, a.seed, a.mode, rewrite=not a.no_rewrite, smooth=a.smooth, znorm=a.znorm, tries=a.tries, straight=a.straight, land=not a.no_landing, frontend=a.frontend, runtime="mobile" if a.mobile else "desktop", threads=a.threads)
+    r = generate(a.prompt, a.target, a.guidance, a.seed, a.mode, rewrite=not a.no_rewrite, smooth=a.smooth, znorm=a.znorm, step_cap=a.step_cap, tries=a.tries, straight=a.straight, land=not a.no_landing, frontend=a.frontend, runtime="mobile" if a.mobile else "desktop", threads=a.threads)
     print(r)
     print(f"view: http://127.0.0.1:8765/viewer/compare.html#{r['target']}|{r['name']}   (python viewer/serve.py)")
 

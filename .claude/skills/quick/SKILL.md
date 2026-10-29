@@ -15,7 +15,7 @@ Task: $ARGUMENTS
 2. **Locate.** Read the relevant script and the docs that describe it (README "Status", the matching `docs/*.md`).
    Reuse existing helpers and the sys.path line from neighbouring scripts (see CLAUDE.md Conventions).
 3. **Reproduce first when it is a bug.** There is no test suite, so reproduce on the smallest input that shows it:
-   `retarget.py --self-test` for the retargeter, a dry run, or a one-clip / one-character run into a scratch folder
+   `skeleton_spec.py --self-test` or `skeleton_synth.py --self-test`, a dry run, or a one-clip / one-character run into a scratch folder
    (never into `data/` production files; pass `--report <scratch>` where the script writes one).
 4. **Implement** the smallest change that satisfies the task and the CLAUDE.md conventions.
 5. **Gate:** run `.claude/gate.sh full`. Fix until it passes (max 3 attempts, then stop and report what is failing).

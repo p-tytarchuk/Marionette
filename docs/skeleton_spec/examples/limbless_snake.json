@@ -1,0 +1,138 @@
+{
+ "spec": "skeleton-roles/1",
+ "id": "limbless_snake",
+ "view": {
+  "yaw_deg": 0,
+  "facing": "right"
+ },
+ "parts": [
+  {
+   "id": "trunk",
+   "kind": "trunk"
+  },
+  {
+   "id": "head",
+   "kind": "head"
+  }
+ ],
+ "joints": [
+  {
+   "id": "trunk1",
+   "parent": null,
+   "pos": [
+    0.0,
+    0.0
+   ],
+   "part": "trunk"
+  },
+  {
+   "id": "trunk2",
+   "parent": "trunk1",
+   "pos": [
+    0.1,
+    0.0392
+   ],
+   "part": "trunk"
+  },
+  {
+   "id": "trunk3",
+   "parent": "trunk2",
+   "pos": [
+    0.2,
+    0.0487
+   ],
+   "part": "trunk"
+  },
+  {
+   "id": "trunk4",
+   "parent": "trunk3",
+   "pos": [
+    0.3,
+    0.0214
+   ],
+   "part": "trunk"
+  },
+  {
+   "id": "trunk5",
+   "parent": "trunk4",
+   "pos": [
+    0.4,
+    -0.0221
+   ],
+   "part": "trunk"
+  },
+  {
+   "id": "trunk6",
+   "parent": "trunk5",
+   "pos": [
+    0.5,
+    -0.0489
+   ],
+   "part": "trunk"
+  },
+  {
+   "id": "trunk7",
+   "parent": "trunk6",
+   "pos": [
+    0.6,
+    -0.0386
+   ],
+   "part": "trunk"
+  },
+  {
+   "id": "trunk8",
+   "parent": "trunk7",
+   "pos": [
+    0.7,
+    0.0008
+   ],
+   "part": "trunk"
+  },
+  {
+   "id": "trunk9",
+   "parent": "trunk8",
+   "pos": [
+    0.8,
+    0.0397
+   ],
+   "part": "trunk"
+  },
+  {
+   "id": "trunk10",
+   "parent": "trunk9",
+   "pos": [
+    0.9,
+    0.0485
+   ],
+   "part": "trunk"
+  },
+  {
+   "id": "trunk11",
+   "parent": "trunk10",
+   "pos": [
+    1.0,
+    0.0206
+   ],
+   "part": "trunk"
+  },
+  {
+   "id": "trunk12",
+   "parent": "trunk11",
+   "pos": [
+    1.1,
+    -0.0229
+   ],
+   "part": "trunk"
+  },
+  {
+   "id": "head1",
+   "parent": "trunk12",
+   "pos": [
+    1.12,
+    0.08
+   ],
+   "part": "head"
+  }
+ ],
+ "declared_class": "limbless"
+}
